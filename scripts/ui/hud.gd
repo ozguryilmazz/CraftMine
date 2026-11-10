@@ -1,10 +1,10 @@
 class_name Hud
 extends Control
-## Oyun içi arayüz ve girdi: dokunmatik joystick, zıplama, kamera sürükleme, dokun = kır,
-## uzun bas = yerleştir, hotbar. Masaüstünde fare + klavye.
+## Oyun içi arayüz ve girdi: dokunmatik joystick, zıplama, kamera sürükleme,
+## basılı tut = kır, dokun = yerleştir, hotbar. Masaüstünde fare + klavye.
 
 const JOY_R := 90.0
-const LONG_PRESS := 0.4
+const HOLD_TIME := 0.25   # bu süreden uzun basış kırmaya başlar
 const TAP_MOVE := 16.0
 const SLOT := 64.0
 const TOUCH_SENS := 0.0055
@@ -22,7 +22,7 @@ var _look_start := Vector2.ZERO
 var _look_pos := Vector2.ZERO
 var _look_time := 0.0
 var _look_moved := false
-var _look_fired := false
+var _look_mining := false
 var _jump_id := -1
 var _font: Font
 
@@ -73,8 +73,6 @@ func _input(event: InputEvent) -> void:
 	elif event is InputEventMouseButton and event.pressed:
 		if not captured:
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-		elif event.button_index == MOUSE_BUTTON_LEFT:
-			game.break_at(size * 0.5)
 		elif event.button_index == MOUSE_BUTTON_RIGHT:
 			game.place_at(size * 0.5)
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
@@ -118,7 +116,7 @@ func _touch_down(id: int, p: Vector2) -> void:
 		_look_pos = p
 		_look_time = 0.0
 		_look_moved = false
-		_look_fired = false
+		_look_mining = false
 
 
 func _touch_up(id: int) -> void:
@@ -131,8 +129,9 @@ func _touch_up(id: int) -> void:
 		player.move_input = Vector2.ZERO
 	elif id == _look_id:
 		_look_id = -1
-		if not _look_moved and not _look_fired:
-			game.break_at(_look_pos)   # kısa dokunuş: bloğu kır
+		if not _look_moved and not _look_mining:
+			game.place_at(_look_pos)   # kısa dokunuş: blok yerleştir
+		_look_mining = false
 
 
 func _touch_drag(id: int, p: Vector2, rel: Vector2) -> void:
@@ -141,6 +140,8 @@ func _touch_drag(id: int, p: Vector2, rel: Vector2) -> void:
 		player.move_input = Vector2(_joy_vec.x, -_joy_vec.y)
 	elif id == _look_id:
 		_look_pos = p
+		if _look_mining:
+			return   # kırarken parmağı kaydırmak hedefi değiştirir, kamerayı döndürmez
 		if not _look_moved and p.distance_to(_look_start) > TAP_MOVE:
 			_look_moved = true
 		if _look_moved:
@@ -150,6 +151,7 @@ func _touch_drag(id: int, p: Vector2, rel: Vector2) -> void:
 func release_all() -> void:
 	_joy_id = -1
 	_look_id = -1
+	_look_mining = false
 	_jump_id = -1
 	_joy_vec = Vector2.ZERO
 	if player != null:
@@ -158,11 +160,17 @@ func release_all() -> void:
 
 
 func _process(delta: float) -> void:
-	if _look_id != -1 and not _look_moved and not _look_fired:
-		_look_time += delta
-		if _look_time >= LONG_PRESS:
-			_look_fired = true
-			game.place_at(_look_pos)   # uzun basış: blok yerleştir
+	if game.paused:
+		pass
+	elif touch_mode:
+		if _look_id != -1 and not _look_moved:
+			_look_time += delta
+			if _look_time >= HOLD_TIME:
+				_look_mining = true
+		if _look_mining:
+			game.mine_at(_look_pos, delta)   # basılı tut: bloğu kademeli kır
+	elif Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+		game.mine_at(size * 0.5, delta)
 	queue_redraw()
 
 

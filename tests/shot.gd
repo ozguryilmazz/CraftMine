@@ -32,7 +32,16 @@ func _ready() -> void:
 	await get_tree().create_timer(0.3).timeout
 	var c: Vector2 = game.hud.size * 0.5
 	var before: Dictionary = game._target(c)
-	game.break_at(c)
+	# Çim 0.6 sn'de kırılır: yarısında çatlak görüntüsü al, sonra bitir.
+	for i in 24:
+		game.mine_at(c, 1.0 / 60.0)
+		await get_tree().process_frame
+	print("mining progress=", game._mine_progress, " crack=", game._crack.visible)
+	game.mine_at(c, 0.0)
+	await _shot("1b_cracking")
+	for i in 40:
+		game.mine_at(c, 1.0 / 60.0)
+		await get_tree().process_frame
 	var after: Dictionary = game._target(c)
 	print("break: ", before.get("pos"), " -> ", after.get("pos"), " edits=", game.world.export_edits().size())
 	game.select_slot(3)

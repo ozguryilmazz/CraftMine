@@ -4,6 +4,8 @@ extends Node3D
 const REACH := 6.0
 const DAY_LENGTH := 720.0        # saniye; saat cihaz saatinden türetildiği için tüm oyuncularda aynıdır
 const REMOTE_TIMEOUT := 12.0
+const MINE_STAGES := 8
+const MINE_COOLDOWN := 0.2       # art arda kırmalar arasındaki bekleme
 const MENU_SCENE := "res://scenes/main_menu.tscn"
 
 var world: World
@@ -26,6 +28,13 @@ var _net_timer := 0.0
 var _last_sent := []
 var _keepalive := 0.0
 var _online := false
+var _crack: MeshInstance3D
+var _crack_mat: StandardMaterial3D
+var _crack_tex: Array[ImageTexture] = []
+var _mine_pos: Variant = null
+var _mine_progress := 0.0
+var _mine_cooldown := 0.0
+var _mine_requested := false
 
 
 func _ready() -> void:
@@ -56,6 +65,7 @@ func _ready() -> void:
 
 	_highlight = _make_highlight()
 	add_child(_highlight)
+	_make_crack()
 
 	var layer := CanvasLayer.new()
 	add_child(layer)
@@ -120,6 +130,24 @@ func _make_highlight() -> MeshInstance3D:
 	return mi
 
 
+## Kırılmakta olan bloğun üzerine binen çatlak kaplaması.
+func _make_crack() -> void:
+	_crack_tex = Atlas.crack_textures(MINE_STAGES)
+	_crack_mat = StandardMaterial3D.new()
+	_crack_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_crack_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_crack_mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	_crack_mat.uv1_scale = Vector3(3, 2, 1)   # BoxMesh 3x2 yerleşimi: her yüze dokunun tamamı
+	_crack_mat.albedo_texture = _crack_tex[0]
+	var box := BoxMesh.new()
+	box.size = Vector3.ONE * 1.008
+	box.material = _crack_mat
+	_crack = MeshInstance3D.new()
+	_crack.mesh = box
+	_crack.visible = false
+	add_child(_crack)
+
+
 func _build_pause_panel(layer: CanvasLayer) -> void:
 	_pause_panel = ColorRect.new()
 	_pause_panel.color = Color(0, 0, 0, 0.55)
@@ -152,6 +180,11 @@ func _build_pause_panel(layer: CanvasLayer) -> void:
 # ---------- Döngü ----------
 
 func _process(delta: float) -> void:
+	# HUD her karede mine_at çağırmadıysa (parmak/tuş bırakıldı) kırma sıfırlanır.
+	if not _mine_requested:
+		_mine_reset()
+	_mine_requested = false
+	_mine_cooldown = maxf(_mine_cooldown - delta, 0.0)
 	_update_sky()
 	_update_highlight()
 	var now := Time.get_ticks_msec() / 1000.0
@@ -223,11 +256,43 @@ func _target(p: Vector2) -> Dictionary:
 	return world.raycast(ray[0], ray[1], reach)
 
 
-func break_at(p: Vector2) -> void:
+## Basılı tutulduğu sürece her karede çağrılır: hedef bloğu sertliğine göre kademeli olarak kırar.
+func mine_at(p: Vector2, delta: float) -> void:
+	_mine_requested = true
+	if _mine_cooldown > 0.0 or paused:
+		return
 	var hit := _target(p)
-	if hit.is_empty() or hit["id"] == Blocks.BEDROCK:
+	if hit.is_empty():
+		_mine_reset()
 		return
 	var pos: Vector3i = hit["pos"]
+	var hardness: float = Blocks.HARDNESS[hit["id"]]
+	if hardness < 0.0:
+		_mine_reset()
+		return
+	if _mine_pos == null or _mine_pos != pos:
+		_mine_pos = pos
+		_mine_progress = 0.0
+	_mine_progress += delta
+	if _mine_progress >= hardness:
+		_break(pos)
+		_mine_reset()
+		_mine_cooldown = MINE_COOLDOWN
+		return
+	var stage := clampi(int(_mine_progress / hardness * MINE_STAGES), 0, MINE_STAGES - 1)
+	_crack_mat.albedo_texture = _crack_tex[stage]
+	_crack.position = Vector3(pos) + Vector3(0.5, 0.5, 0.5)
+	_crack.visible = true
+
+
+func _mine_reset() -> void:
+	_mine_pos = null
+	_mine_progress = 0.0
+	if _crack != null:
+		_crack.visible = false
+
+
+func _break(pos: Vector3i) -> void:
 	world.set_block(pos, Blocks.AIR)
 	var above := pos + Vector3i(0, 1, 0)
 	if world.get_block(above.x, above.y, above.z) == Blocks.TORCH:

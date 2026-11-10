@@ -21,6 +21,37 @@ static func icon_region(block: int) -> Rect2:
 	return Rect2((tile % GRID) * TILE, (tile >> 2) * TILE, TILE, TILE)
 
 
+## Kırma animasyonu için giderek büyüyen çatlak dokuları.
+static func crack_textures(stages: int) -> Array[ImageTexture]:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 4242
+	# Ortadan dışarı doğru rastgele yürüyen çatlak kolları
+	var pixels: Array[Vector2i] = []
+	var heads: Array[Vector2i] = []
+	var dirs: Array[Vector2i] = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1), Vector2i(1, 1), Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-1, 1)]
+	var main_dir: Array[Vector2i] = []
+	for i in 5:
+		heads.append(Vector2i(7 + rng.randi_range(0, 1), 7 + rng.randi_range(0, 1)))
+		main_dir.append(dirs[(i * 3 + rng.randi_range(0, 1)) % dirs.size()])
+	while pixels.size() < 90:
+		for i in heads.size():
+			var d: Vector2i = main_dir[i] if rng.randf() < 0.6 else dirs[rng.randi_range(0, dirs.size() - 1)]
+			var h := heads[i] + d
+			if h.x < 0 or h.x >= TILE or h.y < 0 or h.y >= TILE:
+				h = Vector2i(rng.randi_range(4, 11), rng.randi_range(4, 11))
+			heads[i] = h
+			if not pixels.has(h):
+				pixels.append(h)
+	var out: Array[ImageTexture] = []
+	for s in stages:
+		var img := Image.create(TILE, TILE, false, Image.FORMAT_RGBA8)
+		var count := int(pixels.size() * float(s + 1) / stages)
+		for i in count:
+			img.set_pixel(pixels[i].x, pixels[i].y, Color(0.03, 0.03, 0.03, 0.8))
+		out.append(ImageTexture.create_from_image(img))
+	return out
+
+
 static func _build() -> Image:
 	var img := Image.create(TILE * GRID, TILE * GRID, false, Image.FORMAT_RGBA8)
 	var rng := RandomNumberGenerator.new()

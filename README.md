@@ -7,8 +7,8 @@ Godot 4.5 (GDScript) ile yazılmış, dokunmatik kontrollü, voxel tabanlı mobi
 
 - **Sonsuz dünya:** 16×16×64 chunk'lar, Perlin gürültüsüyle arazi, deniz, kumsal ve ağaçlar. Chunk üretimi ve mesh'leme arka plan iş parçacıklarında yapılır.
 - **Bloklar:** Çim, Toprak, Taş, Tahta, Kütük, Yaprak, Su, Meşale (ışık verir), Kum. Yaratıcı mod: bloklar sınırsızdır.
-- **Kontroller (mobil):** sol altta joystick, sağ altta zıplama, ekranı sürükleyerek bakış, **dokun = kır**, **uzun bas = yerleştir**, altta hotbar, sağ üstte 1./3. şahıs geçişi.
-- **Kontroller (PC):** WASD + fare, sol tık kır, sağ tık yerleştir, 1–9 / tekerlek ile blok seç, `V` veya `F5` kamera, `Esc` menü.
+- **Kontroller (mobil):** sol altta joystick, sağ altta zıplama, ekranı sürükleyerek bakış, **basılı tut = kır** (çatlak animasyonuyla, bloğun sertliğine göre), **dokun = yerleştir**, altta hotbar, sağ üstte 1./3. şahıs geçişi.
+- **Kontroller (PC):** WASD + fare, sol tık basılı tut = kır, sağ tık yerleştir, 1–9 / tekerlek ile blok seç, `V` veya `F5` kamera, `Esc` menü.
 - **Çok oyunculu:** "Sunucu Kur" 4 haneli kod üretir, diğer oyuncu "Oyuna Katıl" ile aynı kodu girer. Oyuncu konumları ve blok değişiklikleri Firebase Realtime Database üzerinden anlık eşitlenir; sonradan katılan oyuncu dünyanın güncel halini alır.
 - **Güncelleme kontrolü:** Ana menüdeki buton (ve açılışta sessiz kontrol) GitHub Releases'teki en son sürüme bakar, yenisi varsa APK indirme bağlantısını açar.
 - **Kayıt:** Tek oyunculu / host dünyası cihazda otomatik kaydedilir.

@@ -19,6 +19,9 @@ const NAMES := ["Hava", "Çim", "Toprak", "Taş", "Tahta", "Kütük", "Yaprak", 
 ## Hotbar'daki bloklar (yaratıcı mod: sınırsız).
 const HOTBAR := [GRASS, DIRT, STONE, PLANKS, LOG, LEAVES, WATER, TORCH, SAND]
 
+## Kırma süresi (saniye). 0: anında kırılır, -1: kırılamaz.
+const HARDNESS := [0.0, 0.6, 0.5, 1.5, 1.0, 1.0, 0.25, 0.0, 0.0, 0.5, -1.0]
+
 ## Her blok için atlas karoları: [üst, yan, alt]
 const TILES := [
 	[0, 0, 0],    # hava
