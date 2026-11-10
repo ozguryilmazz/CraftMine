@@ -6,4 +6,4 @@ const DB_URL := "https://craftmine-aa35b-default-rtdb.europe-west1.firebasedatab
 
 ## Firebase Console > Proje ayarları > Genel > "Web API Key".
 ## Boş bırakılırsa anonim giriş yapılmaz; bu durumda veritabanı kuralları herkese açık olmalıdır.
-const API_KEY := ""
+const API_KEY := "AIzaSyBmRE9wJrrnatLBDhEE0zOvMPhm-VcGZaA"
