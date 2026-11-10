@@ -90,6 +90,18 @@ func _ready() -> void:
 	game.select_slot(8)
 	await get_tree().create_timer(0.2).timeout
 	await _shot("2b_tool")
+	game.select_slot(7)
+	await get_tree().create_timer(0.2).timeout
+	await _shot("2c_pick")
+	game.select_slot(0)
+	await get_tree().create_timer(0.2).timeout
+	await _shot("2d_block")
+	game.select_slot(7)
+	for i in 14:
+		game.mine_at(c + Vector2(0, -60), 1.0 / 60.0)
+		await get_tree().process_frame
+	game.mine_at(c + Vector2(0, -60), 0.0)
+	await _shot("2e_swing")
 
 	# Çalışma masasına dokun -> 3x3 crafting; kazma tarifini diz
 	game.place_at(c + Vector2(170, 0))

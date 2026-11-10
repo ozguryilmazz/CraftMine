@@ -33,6 +33,7 @@ var swinging := false
 var _swing_timer := 0.0
 var _swing_phase := 0.0
 var _arm: Node3D
+var _hand: Node3D           # elde tutulan eşyanın bilek ekseni
 var _held_vis: MeshInstance3D
 var _held_id := -1
 var _spawned := false
@@ -66,6 +67,9 @@ func _ready() -> void:
 	arm_mesh.mesh = box
 	arm_mesh.position = Vector3(0, 0, -0.2)
 	_arm.add_child(arm_mesh)
+	_hand = Node3D.new()
+	_hand.position = Vector3(0.52, -0.62, -0.8)
+	camera.add_child(_hand)
 
 
 ## Tek seferlik kol sallama (blok yerleştirme).
@@ -89,13 +93,17 @@ func set_held(id: int) -> void:
 	mat.render_priority = 2
 	_held_vis.material_override = mat
 	if Items.is_block(id) and id != Blocks.TORCH:
-		_held_vis.scale = Vector3.ONE * 0.17
-		_held_vis.position = Vector3(0, 0.12, -0.4)
+		# Blok: sağ altta, köşesi oyuncuya dönük küp
+		_held_vis.scale = Vector3.ONE * 0.24
+		_held_vis.position = Vector3(0.0, 0.2, 0.0)
+		_held_vis.rotation = Vector3(0.12, 0.7, 0.0)
 	else:
-		_held_vis.scale = Vector3.ONE * 0.2
-		_held_vis.position = Vector3(0.0, 0.15, -0.38)
-		_held_vis.rotation = Vector3(0, -0.5, 0)
-	_arm.add_child(_held_vis)
+		# Alet / eşya: sapı sağ alttaki elde, başı yukarı-ileri bakacak şekilde çapraz tutuş.
+		# Simge aynalanır (sap sağ altta kalsın diye) ve uzak ucu ileri doğru yatırılır.
+		_held_vis.scale = Vector3.ONE * 0.36
+		_held_vis.position = Vector3(-0.06, 0.34, 0.0)
+		_held_vis.rotation = Vector3(0.0, PI - 0.75, 0.12)
+	_hand.add_child(_held_vis)
 
 
 func add_look(dx: float, dy: float) -> void:
@@ -133,7 +141,9 @@ func _process(delta: float) -> void:
 	_swing_phase = _swing_phase + delta * 13.0 if active else 0.0
 	var swing := absf(sin(_swing_phase)) if active else 0.0
 	_arm.rotation = Vector3(0.35 - swing * 0.7, 0.2, 0.0)
-	_arm.visible = not third_person
+	_arm.visible = not third_person and _held_id <= 0   # eşya tutarken yalnızca eşya görünür
+	_hand.rotation = Vector3(-swing * 0.85, swing * 0.25, swing * 0.2)   # bilekten öne doğru vuruş
+	_hand.visible = not third_person
 	model.rotation.y = yaw
 	model.animate(delta, Vector2(vel.x, vel.z).length(), pitch, swing * 1.3)
 

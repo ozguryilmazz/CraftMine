@@ -23,6 +23,7 @@ var _look_pos := Vector2.ZERO
 var _look_time := 0.0
 var _look_moved := false
 var _look_mining := false
+var _mine_drag := false
 var _jump_id := -1
 var _font: Font
 
@@ -133,6 +134,7 @@ func _touch_down(id: int, p: Vector2) -> void:
 		_look_time = 0.0
 		_look_moved = false
 		_look_mining = false
+		_mine_drag = false
 
 
 func _touch_up(id: int) -> void:
@@ -157,7 +159,11 @@ func _touch_drag(id: int, p: Vector2, rel: Vector2) -> void:
 	elif id == _look_id:
 		_look_pos = p
 		if _look_mining:
-			return   # kırarken parmağı kaydırmak hedefi değiştirir, kamerayı döndürmez
+			# Kazarken de parmağı sürükleyerek etrafa bakılabilir (küçük titremeler yok sayılır).
+			if _mine_drag or p.distance_to(_look_start) > TAP_MOVE:
+				_mine_drag = true
+				player.add_look(rel.x * TOUCH_SENS, rel.y * TOUCH_SENS)
+			return
 		if not _look_moved and p.distance_to(_look_start) > TAP_MOVE:
 			_look_moved = true
 		if _look_moved:
