@@ -16,6 +16,7 @@ var _update_url := ""
 
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	theme = Session.theme
 	var bg := ColorRect.new()
 	bg.color = Color(0.36, 0.6, 0.86)
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -35,14 +36,14 @@ func _ready() -> void:
 	center.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.add_child(center)
 	var box := VBoxContainer.new()
-	box.custom_minimum_size = Vector2(520, 0)
+	box.custom_minimum_size = Vector2(620, 0)
 	box.add_theme_constant_override("separation", 10)
 	center.add_child(box)
 
 	var title := Label.new()
 	title.text = "CraftMine"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_font_size_override("font_size", 72)
+	title.add_theme_font_size_override("font_size", 84)
 	title.add_theme_color_override("font_outline_color", Color(0.1, 0.1, 0.1))
 	title.add_theme_constant_override("outline_size", 14)
 	box.add_child(title)
@@ -56,7 +57,7 @@ func _ready() -> void:
 	_name_edit.text = Session.player_name
 	_name_edit.max_length = 16
 	_name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_name_edit.custom_minimum_size.y = 52
+	_name_edit.custom_minimum_size.y = 62
 	name_row.add_child(_name_edit)
 
 	_button(box, "Tek Oyunculu", _on_solo)
@@ -70,7 +71,7 @@ func _ready() -> void:
 	_code_edit.max_length = 4
 	_code_edit.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_code_edit.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_NUMBER
-	_code_edit.custom_minimum_size = Vector2(190, 60)
+	_code_edit.custom_minimum_size = Vector2(230, 70)
 	_code_edit.text_submitted.connect(func(_t: String) -> void: _on_join())
 	join_row.add_child(_code_edit)
 	var join := _button(join_row, "Oyuna Katıl", _on_join)
@@ -82,16 +83,16 @@ func _ready() -> void:
 	_status = Label.new()
 	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_status.custom_minimum_size = Vector2(520, 64)
-	_status.add_theme_font_size_override("font_size", 20)
+	_status.custom_minimum_size = Vector2(620, 64)
+	_status.add_theme_font_size_override("font_size", 24)
 	box.add_child(_status)
 
 	var ver := Label.new()
 	ver.text = "v" + Session.version
 	ver.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
-	ver.offset_left = -130
-	ver.offset_top = -44
-	ver.add_theme_font_size_override("font_size", 20)
+	ver.offset_left = -170
+	ver.offset_top = -52
+	ver.add_theme_font_size_override("font_size", 26)
 	add_child(ver)
 
 	_update_dialog = ConfirmationDialog.new()
@@ -99,6 +100,7 @@ func _ready() -> void:
 	_update_dialog.ok_button_text = "İndir"
 	_update_dialog.cancel_button_text = "Sonra"
 	_update_dialog.confirmed.connect(func() -> void: OS.shell_open(_update_url))
+	_update_dialog.theme = Session.theme
 	add_child(_update_dialog)
 	_new_world_dialog = ConfirmationDialog.new()
 	_new_world_dialog.title = "Yeni Dünya"
@@ -108,6 +110,7 @@ func _ready() -> void:
 	_new_world_dialog.confirmed.connect(func() -> void:
 		Session.delete_world()
 		_on_solo())
+	_new_world_dialog.theme = Session.theme
 	add_child(_new_world_dialog)
 
 	_updater = Updater.new()
@@ -123,7 +126,7 @@ func _ready() -> void:
 func _button(parent: Node, text: String, cb: Callable) -> Button:
 	var b := Button.new()
 	b.text = text
-	b.custom_minimum_size = Vector2(0, 60)
+	b.custom_minimum_size = Vector2(0, 70)
 	b.pressed.connect(cb)
 	parent.add_child(b)
 	_buttons.append(b)

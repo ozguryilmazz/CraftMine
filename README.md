@@ -10,7 +10,7 @@ Godot 4.5 (GDScript) ile yazılmış, dokunmatik kontrollü, voxel tabanlı mobi
 - **Bloklar:** Çim, Toprak, Taş, Kırık Taş, Tahta, Kütük, Yaprak, Su, Meşale, Kum, Çalışma Masası, Fırın ve kömür / demir / altın / elmas cevherleri. Yüksek tepelerde taş yüzeye çıkar; değerli cevherler derindedir.
 - **Aletler:** Tahta, taş, demir, altın ve elmas kazma / balta / kürek. Doğru alet kırmayı hızlandırır; taş ve cevherler yalnızca uygun kazmayla eşya düşürür.
 - **Crafting:** Envanterde 2×2, çalışma masasında 3×3 ızgara; tarifler Minecraft düzenindedir (kütük → tahta → çubuk, çalışma masası, meşale, fırın, aletler). Fırın cevherleri külçeye çevirir.
-- **Kontroller (mobil):** sol altta joystick, sağ altta zıplama, ekranı sürükleyerek bakış, **basılı tut = kır** (çatlak animasyonuyla, bloğun sertliğine göre), **dokun = yerleştir / masayı-fırını aç**, altta hotbar, sağ üstte envanter ve 1./3. şahıs butonları.
+- **Kontroller (mobil):** sol altta joystick, sağ altta zıplama, ekranı sürükleyerek bakış, **basılı tut = kır** (çatlak animasyonuyla, bloğun sertliğine göre), **dokun = yerleştir / masayı-fırını aç**, altta hotbar, hotbar'ın sağ ucunda envanter butonu, sağ üstte 1./3. şahıs butonu.
 - **Kontroller (PC):** WASD + fare, sol tık basılı tut = kır, sağ tık yerleştir, 1–9 / tekerlek ile yuva seç, `E` envanter, `V` veya `F5` kamera, `Esc` menü.
 - **Çok oyunculu:** "Sunucu Kur" 4 haneli kod üretir, diğer oyuncu "Oyuna Katıl" ile aynı kodu girer. Oyuncu konumları ve blok değişiklikleri Firebase Realtime Database üzerinden anlık eşitlenir; sonradan katılan oyuncu dünyanın güncel halini alır.
 - **Güncelleme kontrolü:** Ana menüdeki buton (ve açılışta sessiz kontrol) GitHub Releases'teki en son sürüme bakar, yenisi varsa APK indirme bağlantısını açar.

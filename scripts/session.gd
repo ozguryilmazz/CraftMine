@@ -12,6 +12,10 @@ var room_code := ""
 var player_name := "Oyuncu"
 var local_id := ""
 var touch_mode := false
+## Tüm arayüzde kullanılan kalın yazı tipi.
+var font: Font
+## Kalın ve büyük yazılı arayüz teması (menü, duraklatma ekranı, iletişim kutuları).
+var theme: Theme
 
 ## Yerel dünya (solo/host): { "x_y_z": id } ve son oyuncu konumu.
 var world_edits := {}
@@ -20,6 +24,19 @@ var saved_inv: Variant = null
 
 
 func _ready() -> void:
+	var bold := FontVariation.new()
+	bold.base_font = ThemeDB.fallback_font
+	bold.variation_embolden = 0.7
+	font = bold
+	theme = Theme.new()
+	theme.default_font = font
+	theme.default_font_size = 30
+	for type: String in ["Button", "Label", "LineEdit"]:
+		theme.set_font("font", type, font)
+		theme.set_font_size("font_size", type, 30)
+	theme.set_font("title_font", "Window", font)
+	theme.set_font_size("title_font_size", "Window", 26)
+	get_tree().root.theme = theme
 	touch_mode = OS.has_feature("mobile") or "--touch" in OS.get_cmdline_user_args()
 	var f := FileAccess.open("res://version.json", FileAccess.READ)
 	if f != null:

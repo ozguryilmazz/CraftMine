@@ -5,6 +5,7 @@ class_name Atlas
 const TILE := 16
 const GRID := 8
 const TILE_COUNT := 21
+const ITEM_TILE := 32
 const ITEM_COLS := 8
 const ITEM_ROWS := 4
 
@@ -87,7 +88,7 @@ static func icon_region(block: int) -> Rect2:
 
 
 static func item_region(icon: int) -> Rect2:
-	return Rect2((icon % ITEM_COLS) * TILE, (icon >> 3) * TILE, TILE, TILE)
+	return Rect2((icon % ITEM_COLS) * ITEM_TILE, (icon >> 3) * ITEM_TILE, ITEM_TILE, ITEM_TILE)
 
 
 ## Kırma animasyonu için giderek büyüyen çatlak dokuları.
@@ -243,77 +244,119 @@ static func _pixel(t: int, px: int, py: int, n: float) -> Color:
 
 
 # ---------- Eşya simgeleri ----------
+# Her simge 32x32 pikseldir: şekil + ışık yönüne göre gölgeleme + koyu dış çizgi.
 
 static func _build_items() -> Image:
-	var img := Image.create(TILE * ITEM_COLS, TILE * ITEM_ROWS, false, Image.FORMAT_RGBA8)
+	var img := Image.create(ITEM_TILE * ITEM_COLS, ITEM_TILE * ITEM_ROWS, false, Image.FORMAT_RGBA8)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 99
 	for icon in ITEM_COLS * ITEM_ROWS:
-		var ox := (icon % ITEM_COLS) * TILE
-		var oy := (icon >> 3) * TILE
-		for py in TILE:
-			for px in TILE:
-				img.set_pixel(ox + px, oy + py, _item_pixel(icon, px, py, rng.randf()))
+		if icon > 4 and (icon < 8 or icon >= 23):
+			continue
+		var tile := Image.create(ITEM_TILE, ITEM_TILE, false, Image.FORMAT_RGBA8)
+		for py in ITEM_TILE:
+			for px in ITEM_TILE:
+				var c := _item_pixel(icon, px + 0.5, py + 0.5)
+				if c.a > 0.0:
+					c = _v(c, rng.randf(), 0.045)
+				tile.set_pixel(px, py, c)
+		var ox := (icon % ITEM_COLS) * ITEM_TILE
+		var oy := (icon >> 3) * ITEM_TILE
+		for py in ITEM_TILE:
+			for px in ITEM_TILE:
+				var c := tile.get_pixel(px, py)
+				if c.a > 0.0 and _edge(tile, px, py):
+					c = c.darkened(0.55)
+				img.set_pixel(ox + px, oy + py, c)
 	return img
 
 
-static func _ingot(px: int, py: int, n: float, c: Color) -> Color:
-	if py < 6 or py > 10:
-		return Color(0, 0, 0, 0)
-	var x0 := 2 + (10 - py)
-	if px < x0 or px > x0 + 8:
-		return Color(0, 0, 0, 0)
-	if py == 6:
-		c = c.lightened(0.3)
-	elif py == 10 or px == x0:
-		c = c.darkened(0.3)
-	return _v(c, n, 0.04)
+## Piksel şeklin kenarında mı? (dış çizgi için)
+static func _edge(t: Image, x: int, y: int) -> bool:
+	for d: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+		var nx := x + d.x
+		var ny := y + d.y
+		if nx < 0 or ny < 0 or nx >= ITEM_TILE or ny >= ITEM_TILE or t.get_pixel(nx, ny).a == 0.0:
+			return true
+	return false
 
 
-static func _item_pixel(icon: int, px: int, py: int, n: float) -> Color:
+## l: -1 (gölge) .. +1 (ışık)
+static func _lit(c: Color, l: float) -> Color:
+	l = clampf(l, -1.0, 1.0)
+	return c.lightened(0.32 * l) if l > 0.0 else c.darkened(-0.38 * l)
+
+
+static func _item_pixel(icon: int, fx: float, fy: float) -> Color:
 	var none := Color(0, 0, 0, 0)
-	var wood := Color(0.5, 0.35, 0.18)
+	var wood := Color(0.56, 0.39, 0.2)
+	# Sap ekseni: sol alttan sağ üste. u: sap boyunca, v: sapa dik (sol üst = ışıklı taraf).
+	var dx := fx - 5.0
+	var dy := fy - 27.0
+	var u := (dx - dy) * 0.7071
+	var v := (-dx - dy) * 0.7071
 	match icon:
 		0:   # çubuk
-			if (px + py == 15 or px + py == 16) and px >= 3 and px <= 12:
-				return _v(wood, n, 0.12)
+			if u > 1.5 and u < 30.0 and absf(v) < 1.9:
+				return _lit(wood, v / 1.9)
 			return none
-		1:   # kömür
-			if Vector2(px - 7.5, py - 8.0).length() < 4.6 + n * 1.2:
-				return _v(Color(0.13, 0.13, 0.14), n, 0.35)
-			return none
-		2:
-			return _ingot(px, py, n, TIER_COLORS[2])
-		3:
-			return _ingot(px, py, n, TIER_COLORS[3])
-		4:   # elmas
-			var d := absf(px - 7.5) + absf(py - 7.5)
-			if d < 6.0:
-				var c: Color = TIER_COLORS[4]
-				if px + py < 13:
-					c = c.lightened(0.35)
-				elif d > 4.5:
-					c = c.darkened(0.25)
+		1:   # kömür: üç topaktan oluşan parlak yüzeyli parça
+			var inside := Vector2(fx - 13.0, fy - 18.0).length() < 7.0 \
+				or Vector2(fx - 19.5, fy - 14.0).length() < 6.5 \
+				or Vector2(fx - 18.5, fy - 20.5).length() < 6.0
+			if not inside:
+				return none
+			var light := (-(fx - 16.0) - (fy - 17.0)) / 12.0
+			if (int(fx / 3.0) + int(fy / 3.0)) % 3 == 0:
+				light += 0.5
+			return _lit(Color(0.17, 0.17, 0.19), light * 1.3)
+		2, 3:   # külçe: üst, ön ve yan yüzü görünen çubuk
+			var c: Color = TIER_COLORS[icon]
+			if fy >= 11.0 and fy < 17.0:
+				var s := 17.0 - fy
+				if fx >= 5.0 + s and fx < 21.0 + s:
+					return c.lightened(0.35)
+			if fy >= 17.0 and fy < 23.0 and fx >= 5.0 and fx < 21.0:
 				return c
+			if fx >= 21.0 and fx < 27.0:
+				var k := fx - 21.0
+				if fy >= 17.0 - k and fy < 23.0 - k:
+					return c.darkened(0.32)
 			return none
-	if icon < 8 or icon >= 8 + 15:
+		4:   # elmas: yüzeyli (fasetalı) taş
+			var c: Color = TIER_COLORS[4]
+			var ax := absf(fx - 16.0)
+			if fy >= 7.0 and fy < 13.0:
+				if ax < 6.0 + (fy - 7.0) * 0.9:
+					return _lit(c, 1.0 if ax < 3.0 else (0.55 if fx < 16.0 else 0.1))
+			elif fy >= 13.0 and fy < 26.0:
+				var hw := 11.4 * (1.0 - (fy - 13.0) / 13.0)
+				if ax < hw:
+					var l := 0.15 if fx < 16.0 else -0.55
+					if ax < hw * 0.35:
+						l += 0.35
+					return _lit(c, l)
+			return none
+	if icon < 8 or icon >= 23:
 		return none
-	# Aletler: çapraz sap + kademeye göre renkli baş
+	# Aletler: gölgeli ahşap sap + kademeye göre renkli baş
 	var tier := (icon - 8) / 3
 	var type := (icon - 8) % 3
 	var head: Color = TIER_COLORS[tier]
-	var is_head := false
 	match type:
-		0:   # kazma
-			is_head = (py >= 2 and py <= 3 and px >= 5 and px <= 13) or (px >= 12 and px <= 13 and py >= 2 and py <= 10)
-		1:   # balta
-			is_head = px >= 8 and px <= 13 and py >= 2 and py <= 7 and not (px >= 12 and py >= 6)
-		2:   # kürek
-			is_head = px >= 10 and px <= 13 and py >= 2 and py <= 5
-	if is_head:
-		if px == 13 or py == 2:
-			head = head.lightened(0.2)
-		return _v(head, n, 0.06)
-	if (px + py == 15 or px + py == 16) and px >= 2 and px <= 11:
-		return _v(wood, n, 0.12)
+		0:   # kazma: sapın ucunda yay biçiminde baş
+			var rr := sqrt(u * u + v * v)
+			var t := absf(atan2(v, u)) / 0.62
+			if t < 1.0 and absf(rr - 24.0) < 2.4 * (1.0 - t * t * 0.55):
+				return _lit(head, (rr - 24.0) / 2.0)
+		1:   # balta: sapın bir yanında kavisli ağız
+			if u > 13.5 and u < 25.0 and v > -1.8 and v < 9.5 - (u - 19.2) * (u - 19.2) * 0.13:
+				return _lit(head, (v - 3.5) / 5.0)
+		2:   # kürek: sapın ucunda oval ağız
+			var e := pow((u - 24.5) / 5.5, 2.0) + pow(v / 4.2, 2.0)
+			if e < 1.0:
+				return _lit(head, v / 3.5)
+	var handle_len := 22.0 if type != 2 else 20.5
+	if u > 0.5 and u < handle_len and absf(v) < 1.7:
+		return _lit(wood, v / 1.7)
 	return none

@@ -94,31 +94,41 @@ func _ready() -> void:
 	# Çalışma masasına dokun -> 3x3 crafting; kazma tarifini diz
 	game.place_at(c + Vector2(170, 0))
 	print("ui open=", game.ui.visible, " mode=", game.ui.mode, " target=", game._target(c + Vector2(170, 0)), " / ", game._target(c + Vector2(-170, 0)), " paused=", game.paused)
-	game.ui._click("inv", 1, false)   # kırık taş yığınını ele al
-	for i in [0, 1, 2]:
-		game.ui._click("grid", i, false)
-	game.ui._click("inv", 1, false)   # kalanını geri bırak
+	# 20 kırık taşı üç hücreye böl: tamamını koy, geri al, "basılı tut" ile yarıla
+	game.ui.press("inv", 1)
+	game.ui.press("grid", 0)
+	game.ui.press("grid", 0)
+	game.ui.halve_held("grid", 0)
+	game.ui.press("grid", 1)
+	game.ui.press("grid", 1)
+	game.ui.halve_held("grid", 1)
+	game.ui.press("grid", 2)
+	print("grid cobble counts=", game.ui._grid_counts[0], ",", game.ui._grid_counts[1], ",", game.ui._grid_counts[2], " hand=", game.ui._cur_n)
 	var stick_slot := -1
 	for i in Inventory.SIZE:
 		if game.inv.id_at(i) == Items.STICK:
 			stick_slot = i
-	game.ui._click("inv", stick_slot, false)
-	game.ui._click("grid", 4, false)
-	game.ui._click("grid", 7, false)
-	game.ui._click("inv", stick_slot, false)
+	game.ui.press("inv", stick_slot)
+	game.ui.press("grid", 4)
+	game.ui.press("grid", 4)
+	game.ui.halve_held("grid", 4)
+	game.ui.press("grid", 7)
+	game.ui.press("inv", 30)
+	game.ui._layout()
+	game.ui._pointer = game.ui._slots[40]["r"].get_center()
 	await get_tree().create_timer(0.3).timeout
 	await _shot("4_crafting")
-	game.ui._click("result", 0, false)
+	game.ui.press("result", 0)
 	print("crafted hint=", game.ui._hint)
 	game.ui.close()
 
 	# Fırın: demir cevheri + kömür
 	game.place_at(c + Vector2(-170, 0))
 	print("ui open=", game.ui.visible, " mode=", game.ui.mode, " target=", game._target(c + Vector2(170, 0)), " / ", game._target(c + Vector2(-170, 0)), " paused=", game.paused)
-	game.ui._click("inv", 3, false)
-	game.ui._click("f", 0, false)
-	game.ui._click("inv", 2, false)
-	game.ui._click("f", 1, false)
+	game.ui.press("inv", 3)
+	game.ui.press("f", 0)
+	game.ui.press("inv", 2)
+	game.ui.press("f", 1)
 	await get_tree().create_timer(2.6).timeout
 	await _shot("5_furnace")
 	print("furnace out=", game.ui._f_ids[2], "x", game.ui._f_counts[2])

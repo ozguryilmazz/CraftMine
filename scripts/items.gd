@@ -72,12 +72,38 @@ static func icon_index(id: int) -> int:
 static func draw_icon(ci: CanvasItem, r: Rect2, id: int) -> void:
 	if id <= 0:
 		return
-	if is_block(id):
-		if id == Blocks.TORCH:
-			r = Rect2(r.position.x + r.size.x * 0.3, r.position.y, r.size.x * 0.4, r.size.y)
+	if id == Blocks.TORCH:
+		r = Rect2(r.position.x + r.size.x * 0.3, r.position.y, r.size.x * 0.4, r.size.y)
 		ci.draw_texture_rect_region(Atlas.texture(), r, Atlas.icon_region(id))
+	elif is_block(id):
+		# Minecraft envanterindeki gibi üç yüzü görünen küp
+		var tex := Atlas.texture()
+		var ts := Vector2(tex.get_size())
+		var cx := r.position.x + r.size.x * 0.5
+		var w := r.size.x * 0.5
+		var y0 := r.position.y
+		var h := r.size.y
+		var top := Vector2(cx, y0)
+		var lt := Vector2(cx - w, y0 + h * 0.25)
+		var rt := Vector2(cx + w, y0 + h * 0.25)
+		var mid := Vector2(cx, y0 + h * 0.5)
+		var lb := Vector2(cx - w, y0 + h * 0.75)
+		var rb := Vector2(cx + w, y0 + h * 0.75)
+		var bot := Vector2(cx, y0 + h)
+		_face(ci, tex, ts, [lt, top, rt, mid], Blocks.TILES[id][0], 1.0)
+		_face(ci, tex, ts, [lt, mid, bot, lb], Blocks.TILES[id][1], 0.78)
+		_face(ci, tex, ts, [mid, rt, rb, bot], Blocks.TILES[id][1], 0.58)
 	else:
 		ci.draw_texture_rect_region(Atlas.item_texture(), r, Atlas.item_region(icon_index(id)))
+
+
+static func _face(ci: CanvasItem, tex: Texture2D, ts: Vector2, pts: Array, tile: int, shade: float) -> void:
+	var reg := Atlas.tile_region(tile)
+	var a := (reg.position + Vector2(0.1, 0.1)) / ts
+	var b := (reg.end - Vector2(0.1, 0.1)) / ts
+	var col := Color(shade, shade, shade)
+	ci.draw_polygon(PackedVector2Array(pts), PackedColorArray([col, col, col, col]),
+		PackedVector2Array([Vector2(a.x, a.y), Vector2(b.x, a.y), Vector2(b.x, b.y), Vector2(a.x, b.y)]), tex)
 
 
 # ---------- Kırma kuralları ----------

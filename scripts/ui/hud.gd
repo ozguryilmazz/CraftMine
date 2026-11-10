@@ -31,7 +31,7 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	_font = ThemeDB.fallback_font
+	_font = Session.font
 
 
 # ---------- Yerleşim ----------
@@ -49,9 +49,10 @@ func _view_rect() -> Rect2:
 	return Rect2(size.x - 78.0, 14.0, 64.0, 64.0)
 
 
-## Envanter butonu
+## Envanter butonu: hotbar'ın 9 yuvasının hemen sağında
 func _inv_rect() -> Rect2:
-	return Rect2(size.x - 78.0 - 76.0, 14.0, 64.0, 64.0)
+	var last := _slot_rect(Inventory.HOTBAR - 1)
+	return Rect2(last.end.x + 8.0, last.position.y, SLOT, SLOT)
 
 
 func _menu_rect() -> Rect2:
@@ -205,7 +206,7 @@ func _draw() -> void:
 		draw_rect(r, dark)
 		var id := inv.id_at(i)
 		if id > 0:
-			Items.draw_icon(self, r.grow(-11.0), id)
+			Items.draw_icon(self, r.grow(-9.0), id)
 			var n := inv.counts[i]
 			if n > 1:
 				var pos := Vector2(r.position.x, r.end.y - 6.0)
@@ -216,7 +217,13 @@ func _draw() -> void:
 	draw_rect(sel, Color(1, 1, 1), false, 4.0)
 	var held_name := Items.item_name(inv.id_at(game.selected))
 	if held_name != "":
-		draw_string(_font, Vector2(0, sel.position.y - 12.0), held_name, HORIZONTAL_ALIGNMENT_CENTER, size.x, 22, white)
+		draw_string(_font, Vector2(0, sel.position.y - 12.0), held_name, HORIZONTAL_ALIGNMENT_CENTER, size.x, 24, white)
+	# Envanter butonu: 3x3 ızgara simgesi
+	var ir := _inv_rect()
+	_button(ir, "")
+	for gy in 3:
+		for gx in 3:
+			draw_rect(Rect2(ir.position + Vector2(13.0 + gx * 13.0, 13.0 + gy * 13.0), Vector2(11.0, 11.0)), Color(1, 1, 1, 0.85))
 	# Üst bilgi
 	if game.info_text != "":
 		draw_string(_font, Vector2(0, 46.0), game.info_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 26, white)
@@ -225,12 +232,6 @@ func _draw() -> void:
 	# Dokunmatik butonlar
 	_button(_menu_rect(), "II")
 	_button(_view_rect(), "3." if not player.third_person else "1.")
-	# Envanter butonu: 3x3 ızgara simgesi
-	var ir := _inv_rect()
-	_button(ir, "")
-	for gy in 3:
-		for gx in 3:
-			draw_rect(Rect2(ir.position + Vector2(13.0 + gx * 13.0, 13.0 + gy * 13.0), Vector2(11.0, 11.0)), Color(1, 1, 1, 0.85))
 	var jc := _jump_center()
 	draw_circle(jc, 62.0, Color(0, 0, 0, 0.55 if _jump_id != -1 else 0.35))
 	draw_arc(jc, 62.0, 0, TAU, 40, white, 3.0)

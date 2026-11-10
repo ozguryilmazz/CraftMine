@@ -165,6 +165,7 @@ func _build_pause_panel(layer: CanvasLayer) -> void:
 	_pause_panel.color = Color(0, 0, 0, 0.55)
 	_pause_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_pause_panel.visible = false
+	_pause_panel.theme = Session.theme
 	layer.add_child(_pause_panel)
 	var center := CenterContainer.new()
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
