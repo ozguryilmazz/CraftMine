@@ -37,15 +37,8 @@ func setup(p_seed: int, p_render_distance: int) -> void:
 	gen = WorldGen.new(p_seed)
 	render_distance = p_render_distance
 	ChunkMesher.init_tables()
-	_mat_opaque = StandardMaterial3D.new()
-	_mat_opaque.albedo_texture = Atlas.texture()
-	_mat_opaque.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
-	_mat_opaque.vertex_color_use_as_albedo = true
-	_mat_opaque.roughness = 1.0
-	_mat_opaque.metallic_specular = 0.0
-	_mat_water = _mat_opaque.duplicate()
-	_mat_water.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_mat_water.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_mat_opaque = Atlas.block_material()
+	_mat_water = Atlas.water_material()
 	var r := render_distance + 1
 	for dz in range(-r, r + 1):
 		for dx in range(-r, r + 1):
@@ -280,7 +273,9 @@ func raycast(origin: Vector3, dir: Vector3, max_dist: float) -> Dictionary:
 	while t <= max_dist:
 		var id := get_block(p.x, p.y, p.z)
 		if id > 0 and id != Blocks.WATER:
-			return {"pos": p, "normal": normal, "id": id, "dist": t}
+			# Meşale hücrenin tamamını kaplamaz: yalnızca çubuğun çevresine isabet sayılır.
+			if id != Blocks.TORCH or _hits_box(origin, dir, Vector3(p) + Vector3(0.3, 0.0, 0.3), Vector3(p) + Vector3(0.7, 0.75, 0.7)):
+				return {"pos": p, "normal": normal, "id": id, "dist": t}
 		var a := 0
 		if t_max.y < t_max.x and t_max.y <= t_max.z:
 			a = 1
@@ -292,6 +287,24 @@ func raycast(origin: Vector3, dir: Vector3, max_dist: float) -> Dictionary:
 		normal = Vector3i.ZERO
 		normal[a] = -step[a]
 	return {}
+
+
+## Işın, verilen kutuyla kesişiyor mu? (slab yöntemi)
+func _hits_box(origin: Vector3, dir: Vector3, lo: Vector3, hi: Vector3) -> bool:
+	var t0 := 0.0
+	var t1 := INF
+	for a in 3:
+		if absf(dir[a]) < 1e-7:
+			if origin[a] < lo[a] or origin[a] > hi[a]:
+				return false
+		else:
+			var ta := (lo[a] - origin[a]) / dir[a]
+			var tb := (hi[a] - origin[a]) / dir[a]
+			t0 = maxf(t0, minf(ta, tb))
+			t1 = minf(t1, maxf(ta, tb))
+			if t0 > t1:
+				return false
+	return true
 
 
 # ---------- Kayıt / ağ için değişiklik dökümü ----------

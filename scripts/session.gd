@@ -16,6 +16,7 @@ var touch_mode := false
 ## Yerel dünya (solo/host): { "x_y_z": id } ve son oyuncu konumu.
 var world_edits := {}
 var saved_pos: Variant = null
+var saved_inv: Variant = null
 
 
 func _ready() -> void:
@@ -49,6 +50,7 @@ func has_saved_world() -> bool:
 func load_world() -> void:
 	world_edits = {}
 	saved_pos = null
+	saved_inv = null
 	world_seed = randi() & 0x7fffffff
 	var f := FileAccess.open(SAVE_PATH, FileAccess.READ)
 	if f == null:
@@ -58,14 +60,16 @@ func load_world() -> void:
 		world_seed = int(d["seed"])
 		world_edits = d.get("edits", {})
 		saved_pos = d.get("pos")
+		saved_inv = d.get("inv")
 
 
-func save_world(edits: Dictionary, pos: Vector3) -> void:
+func save_world(edits: Dictionary, pos: Vector3, inv: Array) -> void:
 	world_edits = edits
 	saved_pos = pos
+	saved_inv = inv
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f != null:
-		f.store_var({"seed": world_seed, "edits": edits, "pos": pos})
+		f.store_var({"seed": world_seed, "edits": edits, "pos": pos, "inv": inv})
 
 
 func delete_world() -> void:

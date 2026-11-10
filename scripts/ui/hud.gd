@@ -1,7 +1,7 @@
 class_name Hud
 extends Control
 ## Oyun içi arayüz ve girdi: dokunmatik joystick, zıplama, kamera sürükleme,
-## basılı tut = kır, dokun = yerleştir, hotbar. Masaüstünde fare + klavye.
+## basılı tut = kır, dokun = yerleştir / kullan, hotbar. Masaüstünde fare + klavye.
 
 const JOY_R := 90.0
 const HOLD_TIME := 0.25   # bu süreden uzun basış kırmaya başlar
@@ -37,7 +37,7 @@ func _ready() -> void:
 # ---------- Yerleşim ----------
 
 func _slot_rect(i: int) -> Rect2:
-	var x0 := (size.x - SLOT * Blocks.HOTBAR.size()) * 0.5
+	var x0 := (size.x - SLOT * Inventory.HOTBAR) * 0.5
 	return Rect2(x0 + i * SLOT, size.y - SLOT - 10.0, SLOT, SLOT)
 
 
@@ -49,14 +49,23 @@ func _view_rect() -> Rect2:
 	return Rect2(size.x - 78.0, 14.0, 64.0, 64.0)
 
 
+## Envanter butonu
+func _inv_rect() -> Rect2:
+	return Rect2(size.x - 78.0 - 76.0, 14.0, 64.0, 64.0)
+
+
 func _menu_rect() -> Rect2:
 	return Rect2(14.0, 14.0, 64.0, 64.0)
 
 
 # ---------- Girdi ----------
 
+func _blocked() -> bool:
+	return game.paused or game.ui.visible
+
+
 func _input(event: InputEvent) -> void:
-	if game.paused:
+	if _blocked():
 		return
 	if touch_mode:
 		if event is InputEventScreenTouch:
@@ -76,15 +85,17 @@ func _input(event: InputEvent) -> void:
 		elif event.button_index == MOUSE_BUTTON_RIGHT:
 			game.place_at(size * 0.5)
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			game.select_slot((game.selected + 1) % Blocks.HOTBAR.size())
+			game.select_slot((game.selected + 1) % Inventory.HOTBAR)
 		elif event.button_index == MOUSE_BUTTON_WHEEL_UP:
-			game.select_slot((game.selected + Blocks.HOTBAR.size() - 1) % Blocks.HOTBAR.size())
+			game.select_slot((game.selected + Inventory.HOTBAR - 1) % Inventory.HOTBAR)
 	elif event is InputEventKey and event.pressed and not event.echo:
 		var k: int = event.physical_keycode
 		if k >= KEY_1 and k <= KEY_9:
 			game.select_slot(k - KEY_1)
 		elif k == KEY_F5 or k == KEY_V:
 			player.toggle_view()
+		elif k == KEY_E:
+			game.open_ui(InventoryUI.MODE_INVENTORY)
 		elif k == KEY_ESCAPE:
 			game.toggle_pause()
 
@@ -97,7 +108,11 @@ func _touch_down(id: int, p: Vector2) -> void:
 	if _view_rect().has_point(p):
 		player.toggle_view()
 		return
-	for i in Blocks.HOTBAR.size():
+	if _inv_rect().has_point(p):
+		release_all()
+		game.open_ui(InventoryUI.MODE_INVENTORY)
+		return
+	for i in Inventory.HOTBAR:
 		if _slot_rect(i).has_point(p):
 			game.select_slot(i)
 			return
@@ -130,7 +145,7 @@ func _touch_up(id: int) -> void:
 	elif id == _look_id:
 		_look_id = -1
 		if not _look_moved and not _look_mining:
-			game.place_at(_look_pos)   # kısa dokunuş: blok yerleştir
+			game.place_at(_look_pos)   # kısa dokunuş: blok yerleştir / masayı-fırını aç
 		_look_mining = false
 
 
@@ -160,7 +175,7 @@ func release_all() -> void:
 
 
 func _process(delta: float) -> void:
-	if game.paused:
+	if _blocked():
 		pass
 	elif touch_mode:
 		if _look_id != -1 and not _look_moved:
@@ -183,21 +198,25 @@ func _draw() -> void:
 		var c := size * 0.5
 		draw_line(c - Vector2(11, 0), c + Vector2(11, 0), white, 2.0)
 		draw_line(c - Vector2(0, 11), c + Vector2(0, 11), white, 2.0)
-	# Hotbar
-	var tex := Atlas.texture()
-	for i in Blocks.HOTBAR.size():
+	# Hotbar: envanterin ilk 9 yuvası
+	var inv: Inventory = game.inv
+	for i in Inventory.HOTBAR:
 		var r := _slot_rect(i)
 		draw_rect(r, dark)
-		var block: int = Blocks.HOTBAR[i]
-		var icon := r.grow(-11.0)
-		if block == Blocks.TORCH:
-			icon = Rect2(r.position.x + r.size.x * 0.5 - 11.0, r.position.y + 10.0, 22.0, r.size.y - 20.0)
-		draw_texture_rect_region(tex, icon, Atlas.icon_region(block))
+		var id := inv.id_at(i)
+		if id > 0:
+			Items.draw_icon(self, r.grow(-11.0), id)
+			var n := inv.counts[i]
+			if n > 1:
+				var pos := Vector2(r.position.x, r.end.y - 6.0)
+				draw_string(_font, pos + Vector2(1.5, 1.5), str(n), HORIZONTAL_ALIGNMENT_RIGHT, r.size.x - 5.0, 20, Color(0, 0, 0, 0.8))
+				draw_string(_font, pos, str(n), HORIZONTAL_ALIGNMENT_RIGHT, r.size.x - 5.0, 20, Color.WHITE)
 		draw_rect(r, Color(0.75, 0.75, 0.75, 0.8), false, 2.0)
 	var sel := _slot_rect(game.selected).grow(3.0)
 	draw_rect(sel, Color(1, 1, 1), false, 4.0)
-	var bname: String = Blocks.NAMES[Blocks.HOTBAR[game.selected]]
-	draw_string(_font, Vector2(0, sel.position.y - 12.0), bname, HORIZONTAL_ALIGNMENT_CENTER, size.x, 22, white)
+	var held_name := Items.item_name(inv.id_at(game.selected))
+	if held_name != "":
+		draw_string(_font, Vector2(0, sel.position.y - 12.0), held_name, HORIZONTAL_ALIGNMENT_CENTER, size.x, 22, white)
 	# Üst bilgi
 	if game.info_text != "":
 		draw_string(_font, Vector2(0, 46.0), game.info_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 26, white)
@@ -206,6 +225,12 @@ func _draw() -> void:
 	# Dokunmatik butonlar
 	_button(_menu_rect(), "II")
 	_button(_view_rect(), "3." if not player.third_person else "1.")
+	# Envanter butonu: 3x3 ızgara simgesi
+	var ir := _inv_rect()
+	_button(ir, "")
+	for gy in 3:
+		for gx in 3:
+			draw_rect(Rect2(ir.position + Vector2(13.0 + gx * 13.0, 13.0 + gy * 13.0), Vector2(11.0, 11.0)), Color(1, 1, 1, 0.85))
 	var jc := _jump_center()
 	draw_circle(jc, 62.0, Color(0, 0, 0, 0.55 if _jump_id != -1 else 0.35))
 	draw_arc(jc, 62.0, 0, TAU, 40, white, 3.0)
@@ -220,4 +245,5 @@ func _draw() -> void:
 func _button(r: Rect2, text: String) -> void:
 	draw_rect(r, Color(0, 0, 0, 0.4))
 	draw_rect(r, Color(1, 1, 1, 0.7), false, 2.0)
-	draw_string(_font, Vector2(r.position.x, r.position.y + r.size.y * 0.5 + 10.0), text, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 28, Color(1, 1, 1, 0.9))
+	if text != "":
+		draw_string(_font, Vector2(r.position.x, r.position.y + r.size.y * 0.5 + 10.0), text, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 28, Color(1, 1, 1, 0.9))

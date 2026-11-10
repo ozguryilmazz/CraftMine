@@ -1,17 +1,23 @@
 extends Node3D
-## Oyun sahnesi: dünyayı, oyuncuyu ve arayüzü kurar; blok kırma/yerleştirme ve çok oyunculu eşitlemeyi yönetir.
+## Oyun sahnesi: dünyayı, oyuncuyu ve arayüzü kurar; blok kırma/yerleştirme, düşen eşyalar,
+## envanter ve çok oyunculu eşitlemeyi yönetir.
 
 const REACH := 6.0
 const DAY_LENGTH := 720.0        # saniye; saat cihaz saatinden türetildiği için tüm oyuncularda aynıdır
 const REMOTE_TIMEOUT := 12.0
 const MINE_STAGES := 8
 const MINE_COOLDOWN := 0.2       # art arda kırmalar arasındaki bekleme
+const PICKUP_RADIUS := 1.5
+const ATTRACT_RADIUS := 2.6
+const MAX_DROPS := 150
 const MENU_SCENE := "res://scenes/main_menu.tscn"
 
 var world: World
 var player: Player
 var hud: Hud
-var selected := 0
+var ui: InventoryUI
+var inv := Inventory.new()
+var selected := 0           # seçili hotbar yuvası
 var paused := false
 var info_text := ""
 
@@ -35,6 +41,7 @@ var _mine_pos: Variant = null
 var _mine_progress := 0.0
 var _mine_cooldown := 0.0
 var _mine_requested := false
+var _drops: Array[ItemDrop] = []
 
 
 func _ready() -> void:
@@ -57,6 +64,7 @@ func _ready() -> void:
 	add_child(player)
 	if Session.mode != "join" and Session.saved_pos is Vector3:
 		player.position = Session.saved_pos
+		inv.from_array(Session.saved_inv)
 	else:
 		var a := randf() * TAU if _online else 0.0
 		var sx := int(cos(a) * 3.0)
@@ -74,6 +82,10 @@ func _ready() -> void:
 	hud.player = player
 	hud.touch_mode = Session.touch_mode
 	layer.add_child(hud)
+	ui = InventoryUI.new()
+	ui.game = self
+	ui.inv = inv
+	layer.add_child(ui)
 	_build_pause_panel(layer)
 
 	if _online:
@@ -183,8 +195,11 @@ func _process(delta: float) -> void:
 	# HUD her karede mine_at çağırmadıysa (parmak/tuş bırakıldı) kırma sıfırlanır.
 	if not _mine_requested:
 		_mine_reset()
+	player.swinging = _mine_requested and _mine_pos != null
 	_mine_requested = false
 	_mine_cooldown = maxf(_mine_cooldown - delta, 0.0)
+	player.set_held(inv.id_at(selected))
+	_update_drops(delta)
 	_update_sky()
 	_update_highlight()
 	var now := Time.get_ticks_msec() / 1000.0
@@ -223,7 +238,7 @@ func _update_sky() -> void:
 
 func _update_highlight() -> void:
 	_highlight.visible = false
-	if Session.touch_mode or paused:
+	if Session.touch_mode or paused or ui.visible:
 		return
 	var hit := world.raycast(player.camera.global_position, player.look_dir(), REACH + (4.0 if player.third_person else 0.0))
 	if hit.is_empty():
@@ -259,14 +274,15 @@ func _target(p: Vector2) -> Dictionary:
 ## Basılı tutulduğu sürece her karede çağrılır: hedef bloğu sertliğine göre kademeli olarak kırar.
 func mine_at(p: Vector2, delta: float) -> void:
 	_mine_requested = true
-	if _mine_cooldown > 0.0 or paused:
+	if _mine_cooldown > 0.0 or paused or ui.visible:
 		return
 	var hit := _target(p)
 	if hit.is_empty():
 		_mine_reset()
 		return
 	var pos: Vector3i = hit["pos"]
-	var hardness: float = Blocks.HARDNESS[hit["id"]]
+	var block: int = hit["id"]
+	var hardness := Items.mine_time(block, inv.id_at(selected))
 	if hardness < 0.0:
 		_mine_reset()
 		return
@@ -275,7 +291,7 @@ func mine_at(p: Vector2, delta: float) -> void:
 		_mine_progress = 0.0
 	_mine_progress += delta
 	if _mine_progress >= hardness:
-		_break(pos)
+		_break(pos, block)
 		_mine_reset()
 		_mine_cooldown = MINE_COOLDOWN
 		return
@@ -292,16 +308,31 @@ func _mine_reset() -> void:
 		_crack.visible = false
 
 
-func _break(pos: Vector3i) -> void:
+func _break(pos: Vector3i, block: int) -> void:
 	world.set_block(pos, Blocks.AIR)
+	# Taş ve cevherler yalnızca uygun kazmayla eşya düşürür.
+	if Items.can_harvest(block, inv.id_at(selected)):
+		spawn_drop(Items.drop_of(block), 1, Vector3(pos) + Vector3(0.5, 0.4, 0.5))
 	var above := pos + Vector3i(0, 1, 0)
 	if world.get_block(above.x, above.y, above.z) == Blocks.TORCH:
 		world.set_block(above, Blocks.AIR)   # dayanağı kalmayan meşale düşer
+		spawn_drop(Blocks.TORCH, 1, Vector3(above) + Vector3(0.5, 0.3, 0.5))
 
 
+## Kısa dokunuş / sağ tık: çalışma masası ve fırını açar, yoksa eldeki bloğu yerleştirir.
 func place_at(p: Vector2) -> void:
+	if paused or ui.visible:
+		return
 	var hit := _target(p)
-	if hit.is_empty() or hit["normal"] == Vector3i.ZERO:
+	if hit.is_empty():
+		return
+	if Blocks.is_interactive(hit["id"]):
+		open_ui(InventoryUI.MODE_TABLE if hit["id"] == Blocks.CRAFTING_TABLE else InventoryUI.MODE_FURNACE)
+		return
+	if hit["normal"] == Vector3i.ZERO:
+		return
+	var block := inv.id_at(selected)
+	if not Items.is_block(block):
 		return
 	var pos: Vector3i = hit["pos"] + hit["normal"]
 	if pos.y < 1 or pos.y >= World.CH:
@@ -309,14 +340,70 @@ func place_at(p: Vector2) -> void:
 	var existing := world.get_block(pos.x, pos.y, pos.z)
 	if existing != Blocks.AIR and existing != Blocks.WATER:
 		return
-	var block: int = Blocks.HOTBAR[selected]
 	if Blocks.is_solid(block) and player.intersects_block(pos):
 		return
 	world.set_block(pos, block)
+	inv.take(selected, 1)
+	player.swing_once()
 
 
 func select_slot(i: int) -> void:
-	selected = clampi(i, 0, Blocks.HOTBAR.size() - 1)
+	selected = clampi(i, 0, Inventory.HOTBAR - 1)
+
+
+# ---------- Düşen eşyalar ----------
+
+func spawn_drop(id: int, n: int, pos: Vector3) -> void:
+	if id <= 0 or n <= 0:
+		return
+	if _drops.size() >= MAX_DROPS:
+		_drops.pop_front().queue_free()
+	var d := ItemDrop.new()
+	add_child(d)
+	d.setup(world, id, n, pos)
+	_drops.append(d)
+
+
+## Envantere sığmayan eşyayı oyuncunun önüne bırakır.
+func drop_from_player(id: int, n: int) -> void:
+	spawn_drop(id, n, player.eye_position() + player.look_dir() * 1.2)
+
+
+func _update_drops(delta: float) -> void:
+	var center := player.position + Vector3(0, 0.9, 0)
+	var i := _drops.size() - 1
+	while i >= 0:
+		var d := _drops[i]
+		if not is_instance_valid(d):
+			_drops.remove_at(i)
+		elif d.age > ItemDrop.PICKUP_DELAY and inv.can_add(d.item_id, 1):
+			var dist := d.position.distance_to(center)
+			if dist < PICKUP_RADIUS:
+				d.count = inv.add(d.item_id, d.count)
+				if d.count <= 0:
+					d.queue_free()
+					_drops.remove_at(i)
+			elif dist < ATTRACT_RADIUS:
+				d.attract(center, delta)
+		i -= 1
+
+
+# ---------- Envanter / crafting ekranı ----------
+
+func open_ui(mode: int) -> void:
+	if paused or ui.visible:
+		return
+	hud.release_all()
+	_mine_reset()
+	player.controls_enabled = false
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	ui.open(mode)
+
+
+func on_ui_closed() -> void:
+	player.controls_enabled = not paused
+	if not Session.touch_mode and not paused:
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
 # ---------- Çok oyunculu ----------
@@ -366,6 +453,7 @@ func _on_player_left(uid: String) -> void:
 func _on_room_closed(reason: String) -> void:
 	_online = false
 	_room_closed = true
+	ui.close()
 	paused = true
 	player.controls_enabled = false
 	hud.release_all()
@@ -378,6 +466,9 @@ func _on_room_closed(reason: String) -> void:
 # ---------- Duraklatma / çıkış / kayıt ----------
 
 func toggle_pause() -> void:
+	if ui.visible:
+		ui.close()
+		return
 	paused = not paused
 	hud.release_all()
 	player.controls_enabled = not paused
@@ -390,7 +481,7 @@ func toggle_pause() -> void:
 func _save() -> void:
 	_save_timer = 0.0
 	if Session.mode != "join":
-		Session.save_world(world.export_edits(), player.position)
+		Session.save_world(world.export_edits(), player.position, inv.to_array())
 
 
 func exit_to_menu() -> void:

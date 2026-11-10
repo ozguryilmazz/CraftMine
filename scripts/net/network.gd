@@ -18,7 +18,7 @@ signal blocks_bulk(blocks: Dictionary)
 signal room_closed(reason: String)
 
 ## Dünya üretimi veya veri biçimi değiştiğinde artırılır; farklı sürümler aynı odaya giremez.
-const PROTO := 1
+const PROTO := 2
 const POS_INTERVAL := 0.1
 const ALIVE_INTERVAL := 60.0
 const STALE_MS := 11 * 60 * 1000.0

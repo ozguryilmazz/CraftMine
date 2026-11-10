@@ -5,6 +5,7 @@ extends RefCounted
 const CW := 16
 const CH := 64
 const SEA := 20
+const ROCK_LEVEL := 34
 const VOLUME := CW * CW * CH
 
 var world_seed: int
@@ -41,6 +42,23 @@ func tree_at(wx: int, wz: int) -> int:
 	return 4 + ((n >> 12) % 2)
 
 
+## Taşın içindeki maden damarları. Derine indikçe değerli madenler çıkar.
+func ore_at(wx: int, y: int, wz: int) -> int:
+	var n := (wx * 73856093) ^ (y * 19349663) ^ (wz * 83492791) ^ (world_seed * 2654435)
+	n = ((n ^ (n >> 13)) & 0xffffffff) * 1274126177
+	n = (n ^ (n >> 16)) & 0x7fffffff
+	var r := n % 1000
+	if r < 3:
+		return Blocks.DIAMOND_ORE if y < 12 else Blocks.STONE
+	if r < 9:
+		return Blocks.GOLD_ORE if y < 20 else Blocks.STONE
+	if r < 25:
+		return Blocks.IRON_ORE if y < 40 else Blocks.STONE
+	if r < 50:
+		return Blocks.COAL_ORE
+	return Blocks.STONE
+
+
 func generate(cx: int, cz: int) -> PackedByteArray:
 	var data := PackedByteArray()
 	data.resize(VOLUME)
@@ -52,10 +70,13 @@ func generate(cx: int, cz: int) -> PackedByteArray:
 			var h := height_at(bx + lx, bz + lz)
 			var col := lz * CW + lx
 			var beach := h <= SEA + 1
+			var rocky := h >= ROCK_LEVEL   # yüksek tepelerde taş yüzeye çıkar
 			data[col] = Blocks.BEDROCK
 			for y in range(1, h + 1):
 				var id := Blocks.STONE
-				if y >= h - 3:
+				if rocky or y < h - 3:
+					id = ore_at(bx + lx, y, bz + lz)
+				elif y >= h - 3:
 					if beach:
 						id = Blocks.SAND
 					elif y == h:
@@ -72,7 +93,7 @@ func generate(cx: int, cz: int) -> PackedByteArray:
 			if th == 0:
 				continue
 			var h := height_at(bx + tx, bz + tz)
-			if h <= SEA + 1:
+			if h <= SEA + 1 or h >= ROCK_LEVEL:
 				continue
 			for dy in range(th - 2, th + 2):
 				var r := 2 if dy < th else 1

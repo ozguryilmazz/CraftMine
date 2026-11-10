@@ -12,7 +12,7 @@
         "blocks": {
           "$pos": {
             ".write": "auth != null && data.parent().parent().child('meta').exists()",
-            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 10 && $pos.matches(/^-?[0-9]{1,7}_[0-9]{1,2}_-?[0-9]{1,7}$/)"
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 63 && $pos.matches(/^-?[0-9]{1,7}_[0-9]{1,2}_-?[0-9]{1,7}$/)"
           }
         }
       }

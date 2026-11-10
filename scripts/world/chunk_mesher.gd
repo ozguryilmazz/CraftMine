@@ -30,6 +30,7 @@ static var _shade := PackedColorArray()
 static var _opaque := PackedByteArray()
 static var _tiles := PackedByteArray()
 static var _ready := false
+static var _block_meshes := {}
 
 
 ## Ana iş parçacığında, ilk kullanımdan önce bir kez çağrılmalı.
@@ -105,8 +106,8 @@ static func build(d: PackedByteArray, xm: PackedByteArray, xp: PackedByteArray, 
 					if _opaque[nid] == 1 or (water and nid == water_id):
 						continue
 					var tile := _tiles[id * 3 + (0 if f == 2 else (2 if f == 3 else 1))]
-					var tu := (tile & 3) * 0.25
-					var tv := (tile >> 2) * 0.25
+					var tu := (tile & 7) * 0.125
+					var tv := (tile >> 3) * 0.125
 					var n0 := b.v.size()
 					var nrm := _normals[f]
 					var col := _shade[f]
@@ -116,9 +117,33 @@ static func build(d: PackedByteArray, xm: PackedByteArray, xp: PackedByteArray, 
 						b.v.append(Vector3(x + c.x, y + c.y * top, z + c.z))
 						b.n.append(nrm)
 						b.c.append(col)
-						b.uv.append(Vector2(tu + (0.01 + u.x * 0.98) * 0.25, tv + (0.01 + u.y * 0.98) * 0.25))
+						b.uv.append(Vector2(tu + (0.01 + u.x * 0.98) * 0.125, tv + (0.01 + u.y * 0.98) * 0.125))
 					_quad(b, n0, _flip[f] == 1)
 	return {"o": ob, "w": wb, "t": torches}
+
+
+## Tek bir bloğun merkezlenmiş (kenarı 1 birim) küp mesh'i: düşen eşyalar ve elde tutulan blok için.
+static func block_mesh(id: int) -> ArrayMesh:
+	if _block_meshes.has(id):
+		return _block_meshes[id]
+	init_tables()
+	var b := Buf.new()
+	for f in 6:
+		var tile := _tiles[id * 3 + (0 if f == 2 else (2 if f == 3 else 1))]
+		var tu := (tile & 7) * 0.125
+		var tv := (tile >> 3) * 0.125
+		var n0 := b.v.size()
+		for k in 4:
+			var u := _uvs[f * 4 + k]
+			b.v.append(_corners[f * 4 + k] - Vector3(0.5, 0.5, 0.5))
+			b.n.append(_normals[f])
+			b.c.append(_shade[f])
+			b.uv.append(Vector2(tu + (0.01 + u.x * 0.98) * 0.125, tv + (0.01 + u.y * 0.98) * 0.125))
+		_quad(b, n0, _flip[f] == 1)
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, b.arrays())
+	_block_meshes[id] = mesh
+	return mesh
 
 
 static func _quad(b: Buf, n0: int, flip: bool) -> void:
@@ -134,8 +159,8 @@ static func _quad(b: Buf, n0: int, flip: bool) -> void:
 static func _torch(b: Buf, x: int, y: int, z: int) -> void:
 	var mn := Vector3(0.4375, 0.0, 0.4375)
 	var sz := Vector3(0.125, 0.625, 0.125)
-	var tu := 0.0   # karo 8 -> sütun 0, satır 2
-	var tv := 0.5
+	var tu := 0.0   # karo 8 -> sütun 0, satır 1
+	var tv := 0.125
 	for f in 6:
 		var n0 := b.v.size()
 		var py0 := 6.1
@@ -150,5 +175,5 @@ static func _torch(b: Buf, x: int, y: int, z: int) -> void:
 			b.v.append(Vector3(x, y, z) + mn + c * sz)
 			b.n.append(_normals[f])
 			b.c.append(Color(1.3, 1.3, 1.3))
-			b.uv.append(Vector2(tu + (7.1 + u.x * 1.8) / 64.0, tv + (py0 + u.y * (py1 - py0)) / 64.0))
+			b.uv.append(Vector2(tu + (7.1 + u.x * 1.8) / 128.0, tv + (py0 + u.y * (py1 - py0)) / 128.0))
 		_quad(b, n0, _flip[f] == 1)

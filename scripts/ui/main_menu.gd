@@ -189,6 +189,7 @@ func _on_joined(world_seed: int) -> void:
 	Session.world_seed = world_seed
 	Session.world_edits = {}
 	Session.saved_pos = null
+	Session.saved_inv = null
 	get_tree().change_scene_to_file(GAME_SCENE)
 
 

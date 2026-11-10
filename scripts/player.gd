@@ -27,6 +27,14 @@ var controls_enabled := true
 
 var camera: Camera3D
 var model: PlayerModel
+
+## Kırma sırasında oyun tarafından her karede ayarlanır.
+var swinging := false
+var _swing_timer := 0.0
+var _swing_phase := 0.0
+var _arm: Node3D
+var _held_vis: MeshInstance3D
+var _held_id := -1
 var _spawned := false
 var _pos := Vector3.ZERO
 
@@ -41,6 +49,53 @@ func _ready() -> void:
 	model = PlayerModel.new()
 	model.visible = false
 	add_child(model)
+	# Birinci şahıs kol: kameranın sağ alt köşesinde, omuzdan dönen bir kutu
+	_arm = Node3D.new()
+	_arm.position = Vector3(0.5, -0.5, -0.7)
+	camera.add_child(_arm)
+	var arm_mesh := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = Vector3(0.11, 0.11, 0.44)
+	var skin := StandardMaterial3D.new()
+	skin.albedo_color = Color(0.87, 0.68, 0.53)
+	skin.roughness = 1.0
+	skin.metallic_specular = 0.0
+	skin.no_depth_test = true   # kol yakındaki blokların içine girmesin: her zaman üstte çizilir
+	skin.render_priority = 1
+	box.material = skin
+	arm_mesh.mesh = box
+	arm_mesh.position = Vector3(0, 0, -0.2)
+	_arm.add_child(arm_mesh)
+
+
+## Tek seferlik kol sallama (blok yerleştirme).
+func swing_once() -> void:
+	_swing_timer = 0.25
+
+
+## Elde tutulan eşyanın görselini günceller (0: boş el).
+func set_held(id: int) -> void:
+	if id == _held_id:
+		return
+	_held_id = id
+	if _held_vis != null:
+		_held_vis.queue_free()
+		_held_vis = null
+	if id <= 0:
+		return
+	_held_vis = ItemDrop.make_visual(id)
+	var mat: StandardMaterial3D = _held_vis.material_override.duplicate()
+	mat.no_depth_test = true
+	mat.render_priority = 2
+	_held_vis.material_override = mat
+	if Items.is_block(id) and id != Blocks.TORCH:
+		_held_vis.scale = Vector3.ONE * 0.17
+		_held_vis.position = Vector3(0, 0.12, -0.4)
+	else:
+		_held_vis.scale = Vector3.ONE * 0.2
+		_held_vis.position = Vector3(0.0, 0.15, -0.38)
+		_held_vis.rotation = Vector3(0, -0.5, 0)
+	_arm.add_child(_held_vis)
 
 
 func add_look(dx: float, dy: float) -> void:
@@ -73,8 +128,14 @@ func _process(delta: float) -> void:
 		_simulate(delta)
 		position = _pos
 	_update_camera()
+	var active := swinging or _swing_timer > 0.0
+	_swing_timer -= delta
+	_swing_phase = _swing_phase + delta * 13.0 if active else 0.0
+	var swing := absf(sin(_swing_phase)) if active else 0.0
+	_arm.rotation = Vector3(0.35 - swing * 0.7, 0.2, 0.0)
+	_arm.visible = not third_person
 	model.rotation.y = yaw
-	model.animate(delta, Vector2(vel.x, vel.z).length(), pitch)
+	model.animate(delta, Vector2(vel.x, vel.z).length(), pitch, swing * 1.3)
 
 
 func _simulate(delta: float) -> void:

@@ -72,14 +72,14 @@ func _limb(pivot: Vector3, size: Vector3, color: Color) -> Node3D:
 
 
 ## Yürüme animasyonu. speed: yatay hız (blok/sn).
-func animate(delta: float, speed: float, pitch: float) -> void:
+func animate(delta: float, speed: float, pitch: float, swing := 0.0) -> void:
 	_swing = lerpf(_swing, clampf(speed / 4.5, 0.0, 1.0), minf(delta * 10.0, 1.0))
 	_phase += delta * 9.0
 	var a := sin(_phase) * 0.8 * _swing
 	_leg_l.rotation.x = a
 	_leg_r.rotation.x = -a
 	_arm_l.rotation.x = -a
-	_arm_r.rotation.x = a
+	_arm_r.rotation.x = a + swing   # swing: kırma/yerleştirme sırasında sağ kolu öne kaldırır
 	_head.rotation.x = pitch
 
 

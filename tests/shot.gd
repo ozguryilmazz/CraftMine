@@ -27,37 +27,109 @@ func _ready() -> void:
 	print("pos=", player.position, " ground=", player.on_ground, " chunks=", game.world._chunks.size())
 	await _shot("1_first_person")
 
-	# Aşağı bak, blok kır, meşale ve tahta koy
+	# Aşağı bak ve çimi elle kır: yarısında çatlak + kol görüntüsü al
 	player.pitch = -0.6
 	await get_tree().create_timer(0.3).timeout
 	var c: Vector2 = game.hud.size * 0.5
 	var before: Dictionary = game._target(c)
-	# Çim 0.6 sn'de kırılır: yarısında çatlak görüntüsü al, sonra bitir.
-	for i in 24:
+	for i in 30:
 		game.mine_at(c, 1.0 / 60.0)
 		await get_tree().process_frame
-	print("mining progress=", game._mine_progress, " crack=", game._crack.visible)
 	game.mine_at(c, 0.0)
 	await _shot("1b_cracking")
-	for i in 40:
+	for i in 60:
 		game.mine_at(c, 1.0 / 60.0)
 		await get_tree().process_frame
 	var after: Dictionary = game._target(c)
-	print("break: ", before.get("pos"), " -> ", after.get("pos"), " edits=", game.world.export_edits().size())
-	game.select_slot(3)
-	game.place_at(c + Vector2(160, 0))
-	game.select_slot(7)
-	game.place_at(c + Vector2(-160, 0))
+	print("break: ", before.get("pos"), " -> ", after.get("pos"), " drops=", game._drops.size())
+	await _shot("1c_drop")
+	await get_tree().create_timer(2.5).timeout
+	print("after pickup: slot0=", game.inv.id_at(0), "x", game.inv.counts[0], " drops=", game._drops.size())
+
+	# Tarif denemeleri
+	var P := Blocks.PLANKS
+	var S := Items.STICK
+	print("recipe planks: ", Recipes.find([Blocks.LOG, 0, 0, 0, 0, 0, 0, 0, 0], 3).get("out"))
+	print("recipe sticks (shifted): ", Recipes.find([0, 0, 0, 0, 0, P, 0, 0, P], 3).get("out"))
+	print("recipe wood pick: ", Recipes.find([P, P, P, 0, S, 0, 0, S, 0], 3).get("out"), " want ", Items.tool(0, 0))
+	print("recipe axe mirrored: ", Recipes.find([P, P, 0, S, P, 0, S, 0, 0], 3).get("out"), " want ", Items.tool(0, 1))
+	print("recipe none: ", Recipes.find([P, 0, 0, 0, S, 0, 0, 0, 0], 3))
+	print("stone by hand: ", Items.mine_time(Blocks.STONE, 0), " harvest=", Items.can_harvest(Blocks.STONE, 0),
+		" | wood pick: ", Items.mine_time(Blocks.STONE, Items.tool(0, 0)), " harvest=", Items.can_harvest(Blocks.STONE, Items.tool(0, 0)),
+		" | iron ore w/ wood pick harvest=", Items.can_harvest(Blocks.IRON_ORE, Items.tool(0, 0)),
+		" stone pick=", Items.can_harvest(Blocks.IRON_ORE, Items.tool(1, 0)))
+
+	# Envanteri doldur, blok yerleştir, ekranları görüntüle
+	game.inv.add(Blocks.LOG, 5)
+	game.inv.add(Blocks.COBBLE, 20)
+	game.inv.add(Items.COAL, 7)
+	game.inv.add(Blocks.IRON_ORE, 3)
+	game.inv.add(Blocks.CRAFTING_TABLE, 1)
+	game.inv.add(Blocks.FURNACE, 1)
+	game.inv.add(Blocks.TORCH, 4)
+	for tier in 5:
+		for type in 3:
+			game.inv.add(Items.tool(tier, type), 1)
+	game.inv.add(Items.STICK, 9)
+	game.inv.add(Items.IRON_INGOT, 2)
+	game.inv.add(Items.GOLD_INGOT, 2)
+	game.inv.add(Items.DIAMOND, 2)
+	game.inv.add(Blocks.COAL_ORE, 1)
+	game.inv.add(Blocks.GOLD_ORE, 1)
+	game.inv.add(Blocks.DIAMOND_ORE, 1)
+	game.select_slot(4)   # çalışma masası
+	game.place_at(c + Vector2(170, 0))
+	game.select_slot(5)   # fırın
+	game.place_at(c + Vector2(-170, 0))
+	game.select_slot(6)   # meşale
+	game.place_at(c + Vector2(0, 150))
+	game.select_slot(7)   # tahta kazma
 	print("edits after place=", game.world.export_edits())
 	await get_tree().create_timer(1.0).timeout
 	await _shot("2_edited")
+	game.select_slot(8)
+	await get_tree().create_timer(0.2).timeout
+	await _shot("2b_tool")
+
+	# Çalışma masasına dokun -> 3x3 crafting; kazma tarifini diz
+	game.place_at(c + Vector2(170, 0))
+	print("ui open=", game.ui.visible, " mode=", game.ui.mode, " target=", game._target(c + Vector2(170, 0)), " / ", game._target(c + Vector2(-170, 0)), " paused=", game.paused)
+	game.ui._click("inv", 1, false)   # kırık taş yığınını ele al
+	for i in [0, 1, 2]:
+		game.ui._click("grid", i, false)
+	game.ui._click("inv", 1, false)   # kalanını geri bırak
+	var stick_slot := -1
+	for i in Inventory.SIZE:
+		if game.inv.id_at(i) == Items.STICK:
+			stick_slot = i
+	game.ui._click("inv", stick_slot, false)
+	game.ui._click("grid", 4, false)
+	game.ui._click("grid", 7, false)
+	game.ui._click("inv", stick_slot, false)
+	await get_tree().create_timer(0.3).timeout
+	await _shot("4_crafting")
+	game.ui._click("result", 0, false)
+	print("crafted hint=", game.ui._hint)
+	game.ui.close()
+
+	# Fırın: demir cevheri + kömür
+	game.place_at(c + Vector2(-170, 0))
+	print("ui open=", game.ui.visible, " mode=", game.ui.mode, " target=", game._target(c + Vector2(170, 0)), " / ", game._target(c + Vector2(-170, 0)), " paused=", game.paused)
+	game.ui._click("inv", 3, false)
+	game.ui._click("f", 0, false)
+	game.ui._click("inv", 2, false)
+	game.ui._click("f", 1, false)
+	await get_tree().create_timer(2.6).timeout
+	await _shot("5_furnace")
+	print("furnace out=", game.ui._f_ids[2], "x", game.ui._f_counts[2])
+	game.ui.close()
 
 	player.pitch = -0.25
 	player.toggle_view()
 	player.move_input = Vector2(0, 1)
 	await get_tree().create_timer(2.0).timeout
 	player.move_input = Vector2.ZERO
-	print("walked to=", player.position, " ground=", player.on_ground)
+	print("walked to=", player.position, " ground=", player.on_ground, " dirt picked=", game.inv.to_array().slice(0, 4), " drops=", game._drops.size())
 	await _shot("3_third_person")
 	get_tree().quit()
 
