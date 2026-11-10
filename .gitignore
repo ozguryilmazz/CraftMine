@@ -1,0 +1,9 @@
+# Godot
+.godot/
+*.translation
+
+# Derleme çıktıları
+build/
+*.apk
+*.aab
+android/build/

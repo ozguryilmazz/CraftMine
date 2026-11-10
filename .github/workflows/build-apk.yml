@@ -1,0 +1,118 @@
+name: Build APK
+
+# main dalına her push'ta ve v* etiketlerinde Android APK derler,
+# Actions Artifacts'e yükler ve GitHub Release oluşturur/günceller.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: "4.5.1"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Kodu al
+        uses: actions/checkout@v4
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Sürümü belirle
+        id: ver
+        run: |
+          VERSION=$(jq -r .version version.json)
+          CODE=$(jq -r .version_code version.json)
+          # Etiketle tetiklendiyse sürüm etiketten alınır (v1.2.0 -> 1.2.0)
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          jq --arg v "$VERSION" '.version = $v' version.json > version.tmp && mv version.tmp version.json
+          sed -i "s|^version/code=.*|version/code=$CODE|" export_presets.cfg
+          sed -i "s|^version/name=.*|version/name=\"$VERSION\"|" export_presets.cfg
+          sed -i "s|^config/version=.*|config/version=\"$VERSION\"|" project.godot
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Sürüm: $VERSION (kod $CODE)"
+
+      - name: Godot önbelleği
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: ~/godot-cache
+          key: godot-${{ env.GODOT_VERSION }}-android
+
+      - name: Godot ve Android şablonlarını indir
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/godot-cache && cd ~/godot-cache
+          BASE="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable"
+          wget -q "$BASE/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          wget -q "$BASE/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          unzip -q "Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          mv "Godot_v${GODOT_VERSION}-stable_linux.x86_64" godot
+          unzip -q "Godot_v${GODOT_VERSION}-stable_export_templates.tpz" "templates/android_*" "templates/version.txt"
+          rm -f ./*.zip ./*.tpz
+
+      - name: Godot'u kur
+        run: |
+          sudo install -m 755 ~/godot-cache/godot /usr/local/bin/godot
+          TEMPLATES=~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+          mkdir -p "$TEMPLATES"
+          cp ~/godot-cache/templates/* "$TEMPLATES/"
+          mkdir -p ~/.config/godot
+          cat > ~/.config/godot/editor_settings-4.5.tres <<EOF
+          [gd_resource type="EditorSettings" format=3]
+
+          [resource]
+          export/android/java_sdk_path = "$JAVA_HOME"
+          export/android/android_sdk_path = "$ANDROID_HOME"
+          EOF
+          godot --version
+
+      - name: APK derle
+        env:
+          # Depodaki sabit anahtar: her derleme aynı imzayı taşır, böylece yeni sürüm eskisinin üzerine kurulur.
+          GODOT_ANDROID_KEYSTORE_RELEASE_PATH: ${{ github.workspace }}/android/debug.keystore
+          GODOT_ANDROID_KEYSTORE_RELEASE_USER: androiddebugkey
+          GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: android
+          GODOT_ANDROID_KEYSTORE_DEBUG_PATH: ${{ github.workspace }}/android/debug.keystore
+          GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
+          GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
+        run: |
+          mkdir -p build
+          godot --headless --path . --import
+          godot --headless --path . --export-release "Android" build/CraftMine.apk
+          test -s build/CraftMine.apk
+          cp build/CraftMine.apk "build/CraftMine-v${{ steps.ver.outputs.version }}.apk"
+          ls -la build
+
+      - name: APK'yı artifact olarak yükle
+        uses: actions/upload-artifact@v4
+        with:
+          name: CraftMine-v${{ steps.ver.outputs.version }}-apk
+          path: build/CraftMine-v${{ steps.ver.outputs.version }}.apk
+          if-no-files-found: error
+
+      - name: GitHub Release oluştur / güncelle
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.version }}
+          name: CraftMine v${{ steps.ver.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          make_latest: "true"
+          generate_release_notes: true
+          files: build/CraftMine-v${{ steps.ver.outputs.version }}.apk

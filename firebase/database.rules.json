@@ -1,0 +1,21 @@
+{
+  "rules": {
+    "rooms": {
+      "$code": {
+        ".read": "auth != null",
+        ".write": "auth != null && $code.matches(/^[0-9]{4}$/) && (!data.exists() || data.child('meta/host').val() === auth.uid || now - data.child('meta/alive').val() > 600000)",
+        "players": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid && data.parent().parent().child('meta').exists()"
+          }
+        },
+        "blocks": {
+          "$pos": {
+            ".write": "auth != null && data.parent().parent().child('meta').exists()",
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 10 && $pos.matches(/^-?[0-9]{1,7}_[0-9]{1,2}_-?[0-9]{1,7}$/)"
+          }
+        }
+      }
+    }
+  }
+}

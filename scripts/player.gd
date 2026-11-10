@@ -1,0 +1,199 @@
+class_name Player
+extends Node3D
+## Yerel oyuncu: voxel AABB çarpışması, yürüme/zıplama/yüzme ve 1./3. şahıs kamera.
+## `position` ayakların bulunduğu noktadır.
+
+const HALF_W := 0.3
+const HEIGHT := 1.8
+const EYE := 1.62
+const WALK_SPEED := 4.5
+const SWIM_SPEED := 2.6
+const GRAVITY := 28.0
+const JUMP_VEL := 8.6
+
+var world: World
+var vel := Vector3.ZERO
+var yaw := 0.0
+var pitch := 0.0
+var on_ground := false
+var in_water := false
+var third_person := false
+var auto_jump := false
+
+## HUD (joystick / zıplama butonu) tarafından ayarlanır. y: ileri (+) / geri (-).
+var move_input := Vector2.ZERO
+var jump_held := false
+var controls_enabled := true
+
+var camera: Camera3D
+var model: PlayerModel
+var _spawned := false
+var _pos := Vector3.ZERO
+
+
+func _ready() -> void:
+	camera = Camera3D.new()
+	camera.fov = 75.0
+	camera.near = 0.08
+	camera.far = 400.0
+	add_child(camera)
+	camera.make_current()
+	model = PlayerModel.new()
+	model.visible = false
+	add_child(model)
+
+
+func add_look(dx: float, dy: float) -> void:
+	yaw = wrapf(yaw - dx, -PI, PI)
+	pitch = clampf(pitch - dy, -1.5, 1.5)
+
+
+func toggle_view() -> void:
+	third_person = not third_person
+	model.visible = third_person
+
+
+func eye_position() -> Vector3:
+	return position + Vector3(0, EYE, 0)
+
+
+func look_dir() -> Vector3:
+	return Basis.from_euler(Vector3(pitch, yaw, 0)) * Vector3(0, 0, -1)
+
+
+func _process(delta: float) -> void:
+	delta = minf(delta, 0.05)
+	world.set_center_from(position)
+	if world.is_ready_at(position):
+		_pos = position
+		if not _spawned:
+			_spawned = true
+			while _collides(_pos) and _pos.y < World.CH + 2:
+				_pos.y += 1.0
+		_simulate(delta)
+		position = _pos
+	_update_camera()
+	model.rotation.y = yaw
+	model.animate(delta, Vector2(vel.x, vel.z).length(), pitch)
+
+
+func _simulate(delta: float) -> void:
+	var inp := Vector2.ZERO
+	var jump := false
+	if controls_enabled:
+		inp = move_input
+		if Input.is_physical_key_pressed(KEY_W): inp.y += 1.0
+		if Input.is_physical_key_pressed(KEY_S): inp.y -= 1.0
+		if Input.is_physical_key_pressed(KEY_D): inp.x += 1.0
+		if Input.is_physical_key_pressed(KEY_A): inp.x -= 1.0
+		jump = jump_held or Input.is_physical_key_pressed(KEY_SPACE)
+	if inp.length() > 1.0:
+		inp = inp.normalized()
+	var fwd := Vector3(-sin(yaw), 0, -cos(yaw))
+	var right := Vector3(cos(yaw), 0, -sin(yaw))
+	var wish := right * inp.x + fwd * inp.y
+
+	var feet := world.get_block(floori(_pos.x), floori(_pos.y + 0.4), floori(_pos.z))
+	in_water = feet == Blocks.WATER
+	var speed := SWIM_SPEED if in_water else WALK_SPEED
+	var accel := 8.0 if in_water else (14.0 if on_ground else 6.0)
+	var k := minf(accel * delta, 1.0)
+	vel.x = lerpf(vel.x, wish.x * speed, k)
+	vel.z = lerpf(vel.z, wish.z * speed, k)
+
+	if in_water:
+		vel.y = maxf(vel.y - 7.0 * delta, -3.0)
+		if jump:
+			vel.y = minf(vel.y + 22.0 * delta, 3.6)
+	else:
+		vel.y = maxf(vel.y - GRAVITY * delta, -50.0)
+		if jump and on_ground:
+			vel.y = JUMP_VEL
+
+	var blocked := _move(0, vel.x * delta)
+	if blocked:
+		vel.x = 0.0
+	if _move(2, vel.z * delta):
+		vel.z = 0.0
+		blocked = true
+	var was_falling := vel.y <= 0.0
+	on_ground = false
+	if _move(1, vel.y * delta):
+		if was_falling:
+			on_ground = true
+		vel.y = 0.0
+	# Önü tek blokla kapalıysa otomatik zıpla (dokunmatik kontrol kolaylığı).
+	if blocked and auto_jump and wish.length() > 0.3 and (on_ground or in_water):
+		var ahead := _pos + wish.normalized() * 0.7
+		var ax := floori(ahead.x)
+		var az := floori(ahead.z)
+		var ay := floori(_pos.y + 0.1)
+		if world.is_solid(ax, ay, az) and not world.is_solid(ax, ay + 1, az) and not world.is_solid(ax, ay + 2, az):
+			vel.y = JUMP_VEL if not in_water else 3.6
+	if _pos.y < -20.0:
+		_pos = Vector3(_pos.x, World.CH + 4, _pos.z)
+		vel = Vector3.ZERO
+
+
+## Verilen ayak konumunda oyuncu kutusu katı bir blokla kesişiyor mu?
+func _collides(p: Vector3) -> bool:
+	var x0 := floori(p.x - HALF_W)
+	var x1 := floori(p.x + HALF_W)
+	var y0 := floori(p.y)
+	var y1 := floori(p.y + HEIGHT)
+	var z0 := floori(p.z - HALF_W)
+	var z1 := floori(p.z + HALF_W)
+	for y in range(y0, y1 + 1):
+		for z in range(z0, z1 + 1):
+			for x in range(x0, x1 + 1):
+				if world.is_solid(x, y, z):
+					return true
+	return false
+
+
+## Tek eksende hareket; çarpışırsa blok sınırına yaslar ve true döner.
+func _move(axis: int, d: float) -> bool:
+	if d == 0.0:
+		return false
+	var steps := ceili(absf(d) / 0.4)
+	var s := d / steps
+	for i in steps:
+		var p := _pos
+		p[axis] += s
+		if _collides(p):
+			if axis == 1:
+				if s < 0.0:
+					p.y = floorf(p.y) + 1.0
+				else:
+					p.y = floorf(p.y + HEIGHT) - HEIGHT - 0.001
+			elif s > 0.0:
+				p[axis] = floorf(p[axis] + HALF_W) - HALF_W - 0.001
+			else:
+				p[axis] = floorf(p[axis] - HALF_W) + 1.0 + HALF_W + 0.001
+			if not _collides(p):
+				_pos = p
+			return true
+		_pos = p
+	return false
+
+
+## Oyuncu kutusu verilen blok hücresiyle kesişiyor mu? (blok yerleştirme kontrolü)
+func intersects_block(b: Vector3i) -> bool:
+	return position.x + HALF_W > b.x and position.x - HALF_W < b.x + 1 \
+		and position.y + HEIGHT > b.y and position.y < b.y + 1 \
+		and position.z + HALF_W > b.z and position.z - HALF_W < b.z + 1
+
+
+func _update_camera() -> void:
+	var cam_basis := Basis.from_euler(Vector3(pitch, yaw, 0))
+	var eye := Vector3(0, EYE, 0)
+	if third_person:
+		var back := cam_basis * Vector3(0, 0, 1)
+		var dist := 4.0
+		var hit := world.raycast(position + eye, back, dist + 0.3)
+		if not hit.is_empty():
+			dist = maxf(float(hit["dist"]) - 0.3, 0.3)
+		camera.position = eye + back * dist
+	else:
+		camera.position = eye
+	camera.basis = cam_basis
