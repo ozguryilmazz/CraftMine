@@ -163,6 +163,18 @@ func _ready() -> void:
 	await _shot("3_third_person")
 	player.toggle_view()
 
+	# Karakter ekranı: XP kazan, level atla, puan dağıt
+	game.add_xp(250)
+	game.open_stats()
+	game.stats_ui.add_point(0)
+	game.stats_ui.add_point(3)
+	await get_tree().create_timer(0.3).timeout
+	print("stats ui open=", game.stats_ui.visible, " level=", game.stats.level, " points=", game.stats.points, " max_hp=", game.stats.max_hp(), " toast=", game.toast_text)
+	await _shot("8_stats")
+	game.stats_ui.close()
+	await get_tree().create_timer(0.3).timeout
+	await _shot("9_hud_level")
+
 	# Can: hasar al, et ye, sonra öl
 	game.hurt(22)
 	game.inv.set_slot(0, Items.MEAT_BEEF, 3)
@@ -171,8 +183,6 @@ func _ready() -> void:
 	await get_tree().create_timer(1.5).timeout
 	print("hp after hurt 22 + 1.5s eating=", game.stats.hp, " meat left=", game.inv.counts[0], " heal_left=", game.stats.heal_left())
 	await _shot("6_health")
-	game.stats.add_xp(250)
-	game.stats.spend("health")
 	game.hurt(999)
 	await get_tree().create_timer(1.0).timeout
 	var items := 0

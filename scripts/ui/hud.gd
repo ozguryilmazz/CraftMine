@@ -56,6 +56,12 @@ func _inv_rect() -> Rect2:
 	return Rect2(last.end.x + 8.0, last.position.y, SLOT, SLOT)
 
 
+## Karakter butonu: hotbar'ın hemen solunda, üzerinde level yazar
+func _char_rect() -> Rect2:
+	var first := _slot_rect(0)
+	return Rect2(first.position.x - SLOT - 8.0, first.position.y, SLOT, SLOT)
+
+
 func _menu_rect() -> Rect2:
 	return Rect2(14.0, 14.0, 64.0, 64.0)
 
@@ -63,7 +69,7 @@ func _menu_rect() -> Rect2:
 # ---------- Girdi ----------
 
 func _blocked() -> bool:
-	return game.paused or game.ui.visible
+	return game.paused or game.menu_open()
 
 
 func _input(event: InputEvent) -> void:
@@ -98,6 +104,8 @@ func _input(event: InputEvent) -> void:
 			player.toggle_view()
 		elif k == KEY_E:
 			game.open_ui(InventoryUI.MODE_INVENTORY)
+		elif k == KEY_C:
+			game.open_stats()
 		elif k == KEY_ESCAPE:
 			game.toggle_pause()
 
@@ -113,6 +121,10 @@ func _touch_down(id: int, p: Vector2) -> void:
 	if _inv_rect().has_point(p):
 		release_all()
 		game.open_ui(InventoryUI.MODE_INVENTORY)
+		return
+	if _char_rect().has_point(p):
+		release_all()
+		game.open_stats()
 		return
 	for i in Inventory.HOTBAR:
 		if _slot_rect(i).has_point(p):
@@ -228,6 +240,11 @@ func _draw() -> void:
 	if held_name != "":
 		draw_string(_font, Vector2(0, sel.position.y - 40.0), held_name, HORIZONTAL_ALIGNMENT_CENTER, size.x, 24, white)
 	_draw_health()
+	_draw_level()
+	if game.toast_timer > 0.0:
+		var ta := clampf(game.toast_timer, 0.0, 1.0)
+		draw_string(_font, Vector2(2, 112.0), game.toast_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 30, Color(0, 0, 0, 0.7 * ta))
+		draw_string(_font, Vector2(0, 110.0), game.toast_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 30, Color(1.0, 0.9, 0.3, ta))
 	if game.death_timer > 0.0:
 		var a := clampf(game.death_timer, 0.0, 1.0)
 		draw_rect(Rect2(0, size.y * 0.5 - 90.0, size.x, 150.0), Color(0.25, 0.0, 0.0, 0.6 * a))
@@ -272,6 +289,29 @@ func _draw_health() -> void:
 	draw_rect(Rect2(bar.position, Vector2(bar.size.x * f, bar.size.y)), Color(0.85, 0.12, 0.12))
 	draw_rect(bar, Color(1, 1, 1, 0.8), false, 2.0)
 	draw_string(_font, Vector2(bar.position.x, bar.position.y + 17.0), "%d / %d" % [ceili(st.hp), int(full)], HORIZONTAL_ALIGNMENT_CENTER, bar.size.x, 17, Color.WHITE)
+
+
+## XP çubuğu (hotbar'ın sağ üstünde) ve karakter butonu.
+func _draw_level() -> void:
+	var st: PlayerStats = game.stats
+	var s5 := _slot_rect(5)
+	var bar := Rect2(s5.position.x, s5.position.y - 30.0, SLOT * 4.0, 22.0)
+	var need := st.xp_needed()
+	var f := clampf(float(st.xp) / need, 0.0, 1.0) if need > 0 else 1.0
+	draw_rect(bar, Color(0, 0, 0, 0.55))
+	draw_rect(Rect2(bar.position, Vector2(bar.size.x * f, bar.size.y)), Color(0.3, 0.75, 0.2))
+	draw_rect(bar, Color(1, 1, 1, 0.8), false, 2.0)
+	var label := "XP %d / %d" % [st.xp, need] if need > 0 else "En yüksek level"
+	draw_string(_font, Vector2(bar.position.x, bar.position.y + 17.0), label, HORIZONTAL_ALIGNMENT_CENTER, bar.size.x, 17, Color.WHITE)
+	var cr := _char_rect()
+	draw_rect(cr, Color(0, 0, 0, 0.4))
+	var has_points := st.points > 0
+	draw_rect(cr, Color(1.0, 0.85, 0.2) if has_points else Color(1, 1, 1, 0.7), false, 4.0 if has_points else 2.0)
+	draw_string(_font, Vector2(cr.position.x, cr.position.y + 22.0), "Level", HORIZONTAL_ALIGNMENT_CENTER, cr.size.x, 15, Color(1, 1, 1, 0.9))
+	draw_string(_font, Vector2(cr.position.x, cr.position.y + 54.0), str(st.level), HORIZONTAL_ALIGNMENT_CENTER, cr.size.x, 30, Color(1, 1, 1, 0.95))
+	if has_points:
+		draw_circle(Vector2(cr.end.x - 4.0, cr.position.y + 4.0), 13.0, Color(1.0, 0.85, 0.2))
+		draw_string(_font, Vector2(cr.end.x - 17.0, cr.position.y + 11.0), "+", HORIZONTAL_ALIGNMENT_CENTER, 26.0, 22, Color(0.15, 0.1, 0.0))
 
 
 func _button(r: Rect2, text: String) -> void:

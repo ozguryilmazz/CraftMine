@@ -18,12 +18,15 @@ var world: World
 var player: Player
 var hud: Hud
 var ui: InventoryUI
+var stats_ui: StatsUI
 var inv := Inventory.new()
 ## Oyuncuya ait kalıcı veriler (kakacoin; ileride statlar, level, XP). Dünya kaydıyla birlikte saklanır.
 var pdata := {"coins": 0}
 var stats := PlayerStats.new()
 var hurt_flash := 0.0       # hasar alınca ekranın kızarması (HUD okur)
 var death_timer := 0.0      # > 0 iken "Öldün" yazısı gösterilir
+var toast_text := ""        # ekranın üstünde kısa süreli bildirim (level atlama vb.)
+var toast_timer := 0.0
 var selected := 0           # seçili hotbar yuvası
 var paused := false
 var info_text := ""
@@ -96,6 +99,10 @@ func _ready() -> void:
 	ui.game = self
 	ui.inv = inv
 	layer.add_child(ui)
+	stats_ui = StatsUI.new()
+	stats_ui.game = self
+	stats_ui.stats = stats
+	layer.add_child(stats_ui)
 	_build_pause_panel(layer)
 
 	if _online:
@@ -215,6 +222,7 @@ func _process(delta: float) -> void:
 	player.speed_mult = stats.speed_mult()
 	hurt_flash = maxf(hurt_flash - delta * 2.5, 0.0)
 	death_timer = maxf(death_timer - delta, 0.0)
+	toast_timer = maxf(toast_timer - delta, 0.0)
 	_update_drops(delta)
 	_update_sky()
 	_update_highlight()
@@ -254,7 +262,7 @@ func _update_sky() -> void:
 
 func _update_highlight() -> void:
 	_highlight.visible = false
-	if Session.touch_mode or paused or ui.visible:
+	if Session.touch_mode or paused or menu_open():
 		return
 	var hit := world.raycast(player.camera.global_position, player.look_dir(), REACH + (4.0 if player.third_person else 0.0))
 	if hit.is_empty():
@@ -290,7 +298,7 @@ func _target(p: Vector2) -> Dictionary:
 ## Basılı tutulduğu sürece her karede çağrılır: hedef bloğu sertliğine göre kademeli olarak kırar.
 func mine_at(p: Vector2, delta: float) -> void:
 	_mine_requested = true
-	if _mine_cooldown > 0.0 or paused or ui.visible:
+	if _mine_cooldown > 0.0 or paused or menu_open():
 		return
 	var hit := _target(p)
 	if hit.is_empty():
@@ -337,7 +345,7 @@ func _break(pos: Vector3i, block: int) -> void:
 
 ## Kısa dokunuş / sağ tık: çalışma masası ve fırını açar, yoksa eldeki bloğu yerleştirir.
 func place_at(p: Vector2) -> void:
-	if paused or ui.visible:
+	if paused or menu_open():
 		return
 	var hit := _target(p)
 	if not hit.is_empty() and Blocks.is_interactive(hit["id"]):
@@ -396,6 +404,7 @@ func hurt(amount: float) -> void:
 ## Ölüm: tüm eşyalar yok olur, XP ve level sıfırlanır, her stattan 1 puan düşer, oyuncu başlangıç noktasında doğar.
 func _die() -> void:
 	ui.close()
+	stats_ui.close()
 	hud.release_all()
 	_mine_reset()
 	inv.clear()
@@ -452,8 +461,35 @@ func _update_drops(delta: float) -> void:
 
 # ---------- Envanter / crafting ekranı ----------
 
+## Envanter ya da karakter ekranı açık mı?
+func menu_open() -> bool:
+	return ui.visible or stats_ui.visible
+
+
+## XP kazandırır; level atlanırsa bildirim gösterir.
+func add_xp(n: int) -> void:
+	if stats.add_xp(n) > 0:
+		toast("Level %d oldun!" % stats.level if stats.points <= 0 else "Level %d oldun! Dağıtılacak puan: %d" % [stats.level, stats.points])
+
+
+func toast(text: String) -> void:
+	toast_text = text
+	toast_timer = 4.0
+
+
+## Karakter ekranı: level, XP ve stat puanı dağıtma.
+func open_stats() -> void:
+	if paused or menu_open():
+		return
+	hud.release_all()
+	_mine_reset()
+	player.controls_enabled = false
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	stats_ui.open()
+
+
 func open_ui(mode: int) -> void:
-	if paused or ui.visible:
+	if paused or menu_open():
 		return
 	hud.release_all()
 	_mine_reset()
@@ -516,6 +552,7 @@ func _on_room_closed(reason: String) -> void:
 	_online = false
 	_room_closed = true
 	ui.close()
+	stats_ui.close()
 	paused = true
 	player.controls_enabled = false
 	hud.release_all()
@@ -528,8 +565,9 @@ func _on_room_closed(reason: String) -> void:
 # ---------- Duraklatma / çıkış / kayıt ----------
 
 func toggle_pause() -> void:
-	if ui.visible:
+	if menu_open():
 		ui.close()
+		stats_ui.close()
 		return
 	paused = not paused
 	hud.release_all()
