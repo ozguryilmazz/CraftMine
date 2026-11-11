@@ -1,7 +1,14 @@
 class_name Mob
 extends Node3D
 ## Mob: kutulardan model, voxel çarpışması ve basit yapay zeka. `position` ayakların bulunduğu noktadır.
-## Bu sürümde pasif davranış var: gezinir, vurulunca oyuncudan kaçar, asla saldırmaz.
+## Davranış mob sınıfına göre değişir:
+##   passive: gezinir, vurulunca kaçar, asla saldırmaz.
+##   semi   : vurulana kadar zararsızdır; vurulunca ölene ya da oyuncu takip mesafesinden çıkana kadar kovalar.
+##   active : oyuncu yakınına girince kendiliğinden saldırır; daha uzağa kadar kovalar.
+##   boss   : vurulmadan saldırmaz (semi gibi).
+
+## Mob oyuncuya vurduğunda yayılır.
+signal hit_player(damage: float)
 
 const GRAVITY := 26.0
 const JUMP_VEL := 7.6
@@ -19,7 +26,11 @@ var dead := false
 var half_w := 0.25
 var height := 0.75
 var ai_enabled := true
-var player: Node3D           # oyuncu (içinden geçmemek için)
+var player: Node3D           # oyuncu (hedef ve çarpışma)
+var aggro := false           # oyuncuyu kovalıyor mu?
+var hover := 0.0
+var _atk_cd := 0.0
+var _lunge := 0.0
 
 var _model: Node3D
 var _mats: Array = []          # [malzeme, asıl renk]
@@ -41,14 +52,16 @@ func setup(p_world: World, p_type: String, pos: Vector3) -> void:
 	hp = float(max_hp)
 	half_w = float(def["size"].x) * 0.5
 	height = float(def["size"].y)
+	hover = float(def.get("hover", 0.0))
 	position = pos
 	yaw = randf() * TAU
 	_state_time = randf_range(0.5, 3.0)
 	_model = Node3D.new()
 	add_child(_model)
 	_build_model()
+	_model.position.y = hover
 	_label = Label3D.new()
-	_label.position = Vector3(0, height + 0.3, 0)
+	_label.position = Vector3(0, hover + height + 0.3, 0)
 	_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_label.pixel_size = 0.006
 	_label.font = Session.font
@@ -101,9 +114,86 @@ func _quadruped(body: Vector3, leg_h: float, leg_w: float, body_col: Color, leg_
 	return hc
 
 
+## İnsansı gövde (köylü, zombi, iskelet). thin: uzuv kalınlığı çarpanı; arms_forward: kollar öne uzanır.
+func _humanoid(skin: Color, shirt: Color, pants: Color, thin := 1.0, arms_forward := false) -> void:
+	var w := 0.24 * thin
+	_leg(Vector3(-0.13, 0.75, 0), Vector3(w, 0.75, w), pants)
+	_leg(Vector3(0.13, 0.75, 0), Vector3(w, 0.75, w), pants)
+	_box(_model, Vector3(0, 1.1, 0), Vector3(0.52 * (0.6 + 0.4 * thin), 0.7, 0.26 * thin), shirt)
+	var aw := 0.22 * thin
+	for sx: float in [0.38, -0.38]:   # sıra: sağ kol, sol kol (bacaklarla çapraz sallanır)
+		var n := Node3D.new()
+		n.position = Vector3(sx * (0.7 + 0.3 * thin), 1.45, 0)
+		_model.add_child(n)
+		_box(n, Vector3(0, -0.35, 0), Vector3(aw, 0.7, aw), skin if arms_forward else shirt)
+		if arms_forward:
+			n.rotation.x = 1.45
+		else:
+			_legs.append(n)
+	_box(_model, Vector3(0, 1.67, 0), Vector3(0.44, 0.44, 0.44), skin)
+
+
+func _face(y: float, z: float, eye: Color, half := 0.1) -> void:
+	_box(_model, Vector3(-half, y, z), Vector3(0.09, 0.07, 0.02), eye)
+	_box(_model, Vector3(half, y, z), Vector3(0.09, 0.07, 0.02), eye)
+
+
 ## Modelin önü -Z yönüdür.
 func _build_model() -> void:
 	match type:
+		"wolf":
+			var grey := Color(0.72, 0.72, 0.74)
+			var hc := _quadruped(Vector3(0.36, 0.36, 0.8), 0.4, 0.12, grey, grey.darkened(0.15), Vector3(0.34, 0.32, 0.3), grey, 0.1)
+			_box(_model, hc + Vector3(0, -0.07, -0.22), Vector3(0.16, 0.14, 0.16), grey.lightened(0.15))
+			_box(_model, hc + Vector3(0, -0.03, -0.305), Vector3(0.06, 0.05, 0.02), Color(0.08, 0.08, 0.08))
+			_box(_model, hc + Vector3(-0.11, 0.21, 0.04), Vector3(0.09, 0.12, 0.06), grey.darkened(0.2))
+			_box(_model, hc + Vector3(0.11, 0.21, 0.04), Vector3(0.09, 0.12, 0.06), grey.darkened(0.2))
+			_box(_model, Vector3(0, 0.62, 0.52), Vector3(0.1, 0.1, 0.34), grey.darkened(0.1))
+		"bee":
+			var yellow := Color(0.96, 0.78, 0.15)
+			var black := Color(0.1, 0.09, 0.08)
+			_box(_model, Vector3(0, 0.25, 0), Vector3(0.34, 0.32, 0.5), yellow)
+			_box(_model, Vector3(0, 0.25, 0.02), Vector3(0.35, 0.33, 0.08), black)
+			_box(_model, Vector3(0, 0.25, 0.17), Vector3(0.35, 0.33, 0.08), black)
+			_box(_model, Vector3(0, 0.25, 0.29), Vector3(0.05, 0.05, 0.1), black)
+			_box(_model, Vector3(-0.12, 0.46, 0.0), Vector3(0.2, 0.02, 0.28), Color(0.85, 0.93, 1.0))
+			_box(_model, Vector3(0.12, 0.46, 0.0), Vector3(0.2, 0.02, 0.28), Color(0.85, 0.93, 1.0))
+			_face(0.3, -0.255, black, 0.09)
+		"angry_villager":
+			_humanoid(Color(0.78, 0.6, 0.47), Color(0.45, 0.3, 0.2), Color(0.3, 0.22, 0.16))
+			_box(_model, Vector3(0, 1.6, -0.25), Vector3(0.1, 0.2, 0.1), Color(0.68, 0.5, 0.4))
+			_face(1.72, -0.225, Color(0.1, 0.3, 0.1))
+			_box(_model, Vector3(0, 1.8, -0.225), Vector3(0.34, 0.05, 0.02), Color(0.6, 0.1, 0.08))
+		"wizard_villager":
+			var robe := Color(0.42, 0.2, 0.6)
+			_humanoid(Color(0.78, 0.6, 0.47), robe, robe.darkened(0.25))
+			_box(_model, Vector3(0, 1.6, -0.25), Vector3(0.1, 0.2, 0.1), Color(0.68, 0.5, 0.4))
+			_face(1.72, -0.225, Color(0.55, 0.1, 0.7))
+			_box(_model, Vector3(0, 1.93, 0), Vector3(0.6, 0.06, 0.6), robe.darkened(0.3))
+			_box(_model, Vector3(0, 2.1, 0), Vector3(0.34, 0.3, 0.34), robe.darkened(0.3))
+			_box(_model, Vector3(0, 2.33, 0), Vector3(0.18, 0.2, 0.18), robe.darkened(0.3))
+		"zombie":
+			_humanoid(Color(0.36, 0.56, 0.3), Color(0.15, 0.55, 0.6), Color(0.25, 0.22, 0.5), 1.0, true)
+			_face(1.72, -0.225, Color(0.05, 0.05, 0.05))
+			_box(_model, Vector3(0, 1.56, -0.225), Vector3(0.2, 0.05, 0.02), Color(0.15, 0.25, 0.12))
+		"skeleton":
+			var bone := Color(0.85, 0.85, 0.82)
+			_humanoid(bone, bone.darkened(0.08), bone.darkened(0.12), 0.5)
+			_face(1.72, -0.225, Color(0.1, 0.1, 0.1))
+			_box(_model, Vector3(0, 1.57, -0.225), Vector3(0.24, 0.04, 0.02), Color(0.2, 0.2, 0.2))
+			for ry: float in [0.95, 1.1, 1.25]:
+				_box(_model, Vector3(0, ry, -0.07), Vector3(0.3, 0.04, 0.02), Color(0.3, 0.3, 0.3))
+		"creeper":
+			var green := Color(0.3, 0.68, 0.26)
+			var dark := Color(0.06, 0.1, 0.05)
+			for p: Vector2 in [Vector2(-0.15, -0.17), Vector2(0.15, -0.17), Vector2(0.15, 0.17), Vector2(-0.15, 0.17)]:
+				_leg(Vector3(p.x, 0.3, p.y), Vector3(0.2, 0.3, 0.2), green.darkened(0.2))
+			_box(_model, Vector3(0, 0.7, 0), Vector3(0.46, 0.8, 0.28), green)
+			_box(_model, Vector3(0, 1.34, 0), Vector3(0.5, 0.5, 0.5), green.lightened(0.08))
+			_face(1.42, -0.255, dark, 0.12)
+			_box(_model, Vector3(0, 1.26, -0.255), Vector3(0.12, 0.16, 0.02), dark)
+			_box(_model, Vector3(-0.1, 1.2, -0.255), Vector3(0.08, 0.12, 0.02), dark)
+			_box(_model, Vector3(0.1, 1.2, -0.255), Vector3(0.08, 0.12, 0.02), dark)
 		"pig":
 			var pink := Color(0.93, 0.62, 0.62)
 			var hc := _quadruped(Vector3(0.56, 0.46, 0.86), 0.3, 0.18, pink, pink.darkened(0.12), Vector3(0.44, 0.42, 0.4), pink, 0.06)
@@ -148,8 +238,8 @@ func _build_model() -> void:
 ## Dokunmatikte isabet kolay olsun diye kutu biraz büyütülür.
 func ray_hit(origin: Vector3, dir: Vector3) -> float:
 	var g := 0.18
-	var lo := Vector3(position.x - half_w - g, position.y - g, position.z - half_w - g)
-	var hi := Vector3(position.x + half_w + g, position.y + height + g, position.z + half_w + g)
+	var lo := Vector3(position.x - half_w - g, position.y + hover - g, position.z - half_w - g)
+	var hi := Vector3(position.x + half_w + g, position.y + hover + height + g, position.z + half_w + g)
 	var t0 := 0.0
 	var t1 := 1.0e9
 	for a in 3:
@@ -180,11 +270,25 @@ func hurt(amount: float, from: Vector3) -> bool:
 	if hp <= 0.0:
 		dead = true
 		return true
+	provoke(from)
+	return false
+
+
+## Saldırıya uğradı (vuruş sekse bile): pasif mob kaçar, diğerleri oyuncunun peşine düşer.
+func provoke(from: Vector3) -> void:
 	if def["k"] == "passive":
 		_state = "flee"
 		_state_time = FLEE_TIME
 		_flee_from = from
-	return false
+	else:
+		aggro = true
+
+
+## Kovalamayı bırakır (oyuncu öldüğünde ya da uzaklaştığında).
+func calm() -> void:
+	aggro = false
+	_state = "idle"
+	_state_time = randf_range(1.0, 3.0)
 
 
 # ---------- Döngü ----------
@@ -229,6 +333,8 @@ func _process(delta: float) -> void:
 	var swing := sin(_phase) * 0.7 * clampf(speed / 1.2, 0.0, 1.0)
 	for i in _legs.size():
 		_legs[i].rotation.x = swing if i % 2 == 0 else -swing
+	_lunge = maxf(_lunge - delta, 0.0)
+	_model.position = Vector3(0, hover + (sin(_phase * 0.6) * 0.08 if hover > 0.0 else 0.0), -sin(_lunge / 0.25 * PI) * 0.35)
 	if _flash > 0.0:
 		_flash -= delta
 		var f := clampf(_flash / 0.25, 0.0, 1.0)
@@ -252,6 +358,27 @@ func _avoid_player() -> void:
 ## Yapay zeka: istenen yatay hızı döndürür.
 func _think(delta: float) -> Vector3:
 	var speed := float(def["speed"])
+	var kind: String = def["k"]
+	if kind != "passive" and player != null:
+		var to := player.position - position
+		var dist := to.length()
+		if kind == "active" and not aggro and dist < MobDB.AGGRO_RADIUS:
+			aggro = true
+		if aggro:
+			if dist > float(MobDB.LEASH[kind]):
+				calm()   # oyuncu takip mesafesinden çıktı
+			else:
+				_atk_cd = maxf(_atk_cd - delta, 0.0)
+				var flat := Vector3(to.x, 0, to.z)
+				var d := flat.normalized() if flat.length() > 0.01 else Vector3(0, 0, -1)
+				if flat.length() < half_w + MobDB.ATTACK_RANGE and absf(to.y) < 2.2:
+					yaw = lerp_angle(yaw, atan2(-d.x, -d.z), minf(delta * 10.0, 1.0))
+					if _atk_cd <= 0.0:
+						_atk_cd = MobDB.ATTACK_INTERVAL
+						_lunge = 0.25
+						hit_player.emit(float(def["atk"]))
+					return Vector3.ZERO
+				return d * speed
 	_state_time -= delta
 	match _state:
 		"flee":
@@ -267,7 +394,7 @@ func _think(delta: float) -> Vector3:
 				_state = "idle"
 				_state_time = randf_range(1.0, 4.0)
 				return Vector3.ZERO
-			return _dir * speed
+			return _dir * speed * (1.0 if kind == "passive" else 0.4)   # kovalamayan mob ağır ağır gezinir
 	if _state_time <= 0.0:
 		var a := randf() * TAU
 		_dir = Vector3(cos(a), 0, sin(a))

@@ -223,7 +223,46 @@ func _ready() -> void:
 	await get_tree().create_timer(2.0).timeout
 	print("pig hp=", pig.hp, " state=", pig._state, " fled from ", d0, " to ", pig.position.distance_to(player.position), " passive count=", game.count_mobs("passive"))
 	for mm in line:
-		mm.ai_enabled = true
+		mm.queue_free()
+	await get_tree().process_frame
+
+	# Yarı pasif ve aktif modeller
+	var hostile: Array[Mob] = []
+	var kinds2 := ["wolf", "bee", "angry_villager", "wizard_villager", "zombie", "skeleton", "creeper"]
+	for i in kinds2.size():
+		var mm: Mob = game.spawn_mob(kinds2[i], player.position + fwd * 4.5 + right * (i - 3.0) * 1.15 + Vector3(0, 0.3, 0))
+		mm.ai_enabled = false
+		mm.yaw = player.yaw + 2.6
+		hostile.append(mm)
+	player.pitch = -0.12
+	await get_tree().create_timer(1.0).timeout
+	await _shot("14_hostile_models")
+	for mm in hostile:
+		mm.queue_free()
+	await get_tree().process_frame
+
+	# Kurt: vurulmadan saldırmaz; vurulunca kovalar ve hasar verir
+	var wolf: Mob = game.spawn_mob("wolf", player.position + fwd * 3.0 + Vector3(0, 0.3, 0))
+	await get_tree().create_timer(2.5).timeout
+	print("wolf untouched: aggro=", wolf.aggro, " player hp=", game.stats.hp)
+	game._attack_cd = 0.0
+	game.attack_mob(wolf)
+	await get_tree().create_timer(3.0).timeout
+	print("wolf after hit: aggro=", wolf.aggro, " wolf hp=", wolf.hp, " player hp=", game.stats.hp, " dist=", wolf.position.distance_to(player.position))
+	wolf.queue_free()
+	game.stats.hp = 30.0
+	# Zombi: yakına girince kendiliğinden saldırır
+	var zed: Mob = game.spawn_mob("zombie", player.position + fwd * 6.0 + Vector3(0, 0.3, 0))
+	await get_tree().create_timer(3.1).timeout
+	print("zombie: aggro=", zed.aggro, " player hp=", game.stats.hp, " dist=", zed.position.distance_to(player.position))
+	await _shot("15_zombie_attack")
+	# Takip mesafesi: oyuncu uzaklaşınca bırakır
+	zed.position += fwd * 40.0
+	await get_tree().create_timer(0.3).timeout
+	print("zombie far away: aggro=", zed.aggro)
+	zed.queue_free()
+	game.stats.hp = 30.0
+	await get_tree().process_frame
 
 	# Karakter ekranı: XP kazan, level atla, puan dağıt
 	game.add_xp(250)

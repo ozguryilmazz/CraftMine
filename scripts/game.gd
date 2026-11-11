@@ -17,6 +17,15 @@ const ATTACK_REACH := 4.5        # mobla dövüş mesafesi (blok)
 const ATTACK_COOLDOWN := 0.45    # iki vuruş arası bekleme (sn)
 const MAX_PASSIVE := 12          # pasif moblar: sık ve dağınık doğar
 const PASSIVE_TYPES := ["chicken", "pig", "cow", "sheep"]
+const SEMI_TYPES := ["wolf", "bee", "angry_villager", "wizard_villager"]
+const ACTIVE_TYPES := ["zombie", "skeleton", "creeper"]
+const SEMI_GROUP := 5            # yarı pasif moblar 5'li gruplar halinde doğar
+const ACTIVE_GROUP := 4          # aktif moblar 4'lü gruplar halinde doğar
+const MAX_SEMI := 10
+const MAX_ACTIVE := 8
+const SEMI_INTERVAL := 10.0      # grup doğma denemeleri arası süre (sn): "dengeli"
+const ACTIVE_INTERVAL := 16.0    # "dengeliden az"
+const SAFE_RADIUS := 48.0        # başlangıç noktasının çevresinde aktif mob doğmaz
 const MOB_DESPAWN := 72.0        # oyuncudan bu kadar uzaklaşan mob silinir
 
 var world: World
@@ -60,6 +69,8 @@ var _drops: Array[ItemDrop] = []
 var mobs: Array[Mob] = []
 var _attack_cd := 0.0
 var _spawn_timer := 0.0
+var _semi_timer := 0.0
+var _active_timer := 0.0
 
 
 func _ready() -> void:
@@ -409,6 +420,7 @@ func spawn_mob(type: String, pos: Vector3) -> Mob:
 	add_child(m)
 	m.player = player
 	m.setup(world, type, pos)
+	m.hit_player.connect(hurt)
 	mobs.append(m)
 	return m
 
@@ -430,6 +442,36 @@ func _update_mobs(delta: float) -> void:
 		_spawn_timer = 0.0
 		if count_mobs("passive") < MAX_PASSIVE:
 			_try_spawn()
+	_semi_timer += delta
+	if _semi_timer >= SEMI_INTERVAL:
+		_semi_timer = 0.0
+		if count_mobs("semi") + SEMI_GROUP <= MAX_SEMI:
+			_try_spawn_group(SEMI_TYPES[randi() % SEMI_TYPES.size()], SEMI_GROUP, false)
+	_active_timer += delta
+	if _active_timer >= ACTIVE_INTERVAL:
+		_active_timer = 0.0
+		if count_mobs("active") + ACTIVE_GROUP <= MAX_ACTIVE:
+			_try_spawn_group(ACTIVE_TYPES[randi() % ACTIVE_TYPES.size()], ACTIVE_GROUP, true)
+
+
+## Oyuncudan uzakta bir noktada (spot) aynı türden bir grup doğurur.
+## keep_safe: başlangıç noktasının çevresindeki güvenli bölgede doğmaz.
+func _try_spawn_group(type: String, n: int, keep_safe: bool) -> void:
+	var a := randf() * TAU
+	var r := randf_range(26.0, 40.0)
+	var cx := floori(player.position.x + cos(a) * r)
+	var cz := floori(player.position.z + sin(a) * r)
+	if keep_safe and Vector2(cx, cz).length() < SAFE_RADIUS:
+		return
+	if not world.is_ready_at(Vector3(cx, 0, cz)) or _surface_y(cx, cz) < 0:
+		return
+	for i in n:
+		var x := cx + randi_range(-3, 3)
+		var z := cz + randi_range(-3, 3)
+		if world.is_ready_at(Vector3(x, 0, z)):
+			var y := _surface_y(x, z)
+			if y > 0:
+				spawn_mob(type, Vector3(x + 0.5, y, z + 0.5))
 
 
 ## Belirli sınıftaki (passive / semi / active / boss) canlı mob sayısı.
@@ -513,6 +555,7 @@ func attack_mob(m: Mob) -> void:
 	var at := m.position + Vector3(0, m.height + 0.8, 0)
 	if r["miss"]:
 		float_text("Sekti", Color(0.8, 0.8, 0.8), at)
+		m.provoke(player.position)
 	else:
 		var died := m.hurt(float(r["dmg"]), player.position)
 		if r["crit"]:
@@ -560,6 +603,9 @@ func _die() -> void:
 	_mine_reset()
 	inv.clear()
 	stats.die()
+	for m in mobs:
+		if is_instance_valid(m):
+			m.calm()
 	player.teleport(_spawn_point())
 	death_timer = 4.0
 	_save()
