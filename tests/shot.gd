@@ -307,7 +307,16 @@ func _ready() -> void:
 	await _shot("16_chest")
 	game.inv.clear()
 	chest.position = player.position
+	await get_tree().create_timer(0.5).timeout
+	print("no auto pickup: chest alive=", is_instance_valid(chest), " inv empty=", game.inv.id_at(0) == 0)
+	game.open_chest(chest)
 	await get_tree().create_timer(0.3).timeout
+	await _shot("16b_chest_ui")
+	game.ui.press("chest", 1)
+	print("took sticks only: slot0=", game.inv.id_at(0), "x", game.inv.counts[0], " chest left=", chest.items.size(), " ui open=", game.ui.visible, " held=", chest.held)
+	game.ui.take_all()
+	await get_tree().create_timer(0.3).timeout
+	print("after take all: ui open=", game.ui.visible)
 	print("chest collected: freed=", not is_instance_valid(chest), " toast=", game.toast_text, " slot0=", game.inv.id_at(0), " slot1=", game.inv.id_at(1), "x", game.inv.counts[1],
 		" shield=", game.inv.id_at(2), "/", game.inv.dur_at(2))
 	await get_tree().create_timer(9.0).timeout
@@ -418,6 +427,45 @@ func _ready() -> void:
 	await get_tree().create_timer(1.5).timeout
 	player.jump_held = false
 	print("after jumping: hp=", game.stats.hp)
+
+	# Level sınırı: taş kılıç level 0'da üretilemez
+	game.inv.clear()
+	game.inv.set_slot(0, Blocks.COBBLE, 2)
+	game.inv.set_slot(1, Items.STICK, 1)
+	game.open_ui(InventoryUI.MODE_TABLE)
+	game.ui.press("inv", 0)
+	game.ui.press("grid", 1, true)
+	game.ui.press("grid", 4)
+	game.ui.press("inv", 1)
+	game.ui.press("grid", 7)
+	game.ui.press("result", 0)
+	print("stone sword at level ", game.stats.level, ": crafted=", game.inv.find(Items.SWORD_STONE) >= 0, " hint=", game.ui._hint)
+	game.ui.close()
+
+	# Su: kıyı bloğu kırılınca suyla dolar; su yüzeyi 1 blok aşağıdayken karaya çıkılabilir
+	await get_tree().create_timer(4.0).timeout
+	var bx := floori(player.position.x)
+	var bz := floori(player.position.z) - 3
+	var gy := floori(player.position.y) - 1
+	for dz in [0, -1]:
+		game.world.set_block(Vector3i(bx, gy, bz + dz), Blocks.AIR)
+		game.world.set_block(Vector3i(bx, gy + 1, bz + dz), Blocks.AIR)
+		game.world.set_block(Vector3i(bx, gy + 2, bz + dz), Blocks.AIR)
+	game.world.set_block(Vector3i(bx, gy - 1, bz), Blocks.WATER)
+	game.world.set_block(Vector3i(bx, gy - 2, bz), Blocks.STONE)
+	game.world.set_block(Vector3i(bx, gy - 1, bz - 1), Blocks.STONE)
+	game.world.set_block(Vector3i(bx, gy, bz - 1), Blocks.STONE)
+	game._break(Vector3i(bx, gy - 1, bz - 1), Blocks.STONE)
+	print("broken block next to water became: ", game.world.get_block(bx, gy - 1, bz - 1), " (su=", Blocks.WATER, ")")
+	game.world.set_block(Vector3i(bx, gy - 1, bz - 1), Blocks.STONE)
+	player.yaw = 0.0
+	player.teleport(Vector3(bx + 0.5, gy - 0.9, bz + 0.5))
+	await get_tree().create_timer(0.8).timeout
+	print("in pool: pos=", player.position, " in_water=", player.in_water, " shore top y=", gy + 1)
+	player.move_input = Vector2(0, 1)
+	await get_tree().create_timer(2.5).timeout
+	player.move_input = Vector2.ZERO
+	print("climbed out of water: pos=", player.position, " in_water=", player.in_water, " ok=", player.position.y >= gy + 0.99 and player.position.z < bz - 0.2)
 	get_tree().quit()
 
 

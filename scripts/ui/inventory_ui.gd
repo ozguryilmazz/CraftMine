@@ -16,8 +16,9 @@ const HALF_HOLD := 0.4        # yarısını almak için basılı tutma süresi (
 const MODE_INVENTORY := 0
 const MODE_TABLE := 1
 const MODE_FURNACE := 2
+const MODE_CHEST := 3
 const SMELT_TIME := 2.0
-const TITLES := ["Envanter", "Çalışma Masası", "Fırın"]
+const TITLES := ["Envanter", "Çalışma Masası", "Fırın", "Ganimet Sandığı"]
 
 var game: Node
 var inv: Inventory
@@ -43,6 +44,8 @@ var _pointer := Vector2.ZERO            # son dokunma / fare konumu
 var _press_slot := -1                   # basılı tutulan yuva (_slots sırası)
 var _press_time := 0.0
 var _press_can_halve := false
+var chest: LootChest                    # MODE_CHEST'te içeriği gösterilen sandık
+var _take_all := Rect2()
 
 
 func _ready() -> void:
@@ -86,8 +89,54 @@ func close() -> void:
 	_cur_dur = 0
 	_fuel_left = 0.0
 	_press_slot = -1
+	if chest != null and is_instance_valid(chest):
+		chest.held = false
+		if chest.items.is_empty():
+			chest.expired = true
+			chest.queue_free()
+	chest = null
 	visible = false
 	game.on_ui_closed()
+
+
+## Ganimet sandığını açar: üstte sandığın içeriği, altta envanter. Eşyaya dokununca envantere geçer.
+func open_chest(c: LootChest) -> void:
+	chest = c
+	c.held = true
+	open(MODE_CHEST)
+
+
+func _chest_item(i: int) -> Array:
+	if chest != null and is_instance_valid(chest) and i < chest.items.size():
+		return chest.items[i]
+	return [0, 0, 0]
+
+
+## Sandıktaki i. eşyayı envantere alır (sığdığı kadar).
+func take_from_chest(i: int) -> void:
+	var it := _chest_item(i)
+	if int(it[1]) <= 0:
+		return
+	var rest := inv.add(it[0], it[1], it[2])
+	if rest >= int(it[1]):
+		_hint = "Envanter dolu"
+		return
+	_hint = "%s alındı" % Items.item_name(it[0])
+	if rest > 0:
+		chest.items[i] = [it[0], rest, it[2]]
+	else:
+		chest.items.remove_at(i)
+	if chest.items.is_empty():
+		close()
+
+
+func take_all() -> void:
+	var i := 0
+	while chest != null and is_instance_valid(chest) and i < chest.items.size():
+		var before := chest.items.size()
+		take_from_chest(i)
+		if chest != null and chest.items.size() == before:
+			i += 1   # sığmadı: sonrakine geç
 
 
 func _give_back(id: int, n: int, dur := -1) -> void:
@@ -108,7 +157,11 @@ func _layout() -> void:
 	_slots.clear()
 	var x0 := _panel.position.x + PAD
 	var top := _panel.position.y + 56.0
-	if mode == MODE_FURNACE:
+	if mode == MODE_CHEST:
+		for i in 6:
+			_slot(x0 + i * STEP, top + STEP, "chest", i)
+		_take_all = Rect2(x0 + 6.0 * STEP + 10.0, top + STEP, 3.0 * STEP - GAP - 10.0, SLOT)
+	elif mode == MODE_FURNACE:
 		var gx := x0 + 2.0 * STEP
 		_slot(gx, top, "f", 0)
 		_slot(gx, top + 2.0 * STEP, "f", 1)
@@ -150,6 +203,8 @@ func _get_id(kind: String, i: int) -> int:
 			return inv.id_at(i)
 		"eq":
 			return inv.id_at(Inventory.SIZE + i)
+		"chest":
+			return int(_chest_item(i)[0]) if int(_chest_item(i)[1]) > 0 else 0
 		"grid":
 			return _grid_ids[i] if _grid_counts[i] > 0 else 0
 	return _f_ids[i] if _f_counts[i] > 0 else 0
@@ -161,6 +216,8 @@ func _get_n(kind: String, i: int) -> int:
 			return inv.counts[i]
 		"eq":
 			return inv.counts[Inventory.SIZE + i]
+		"chest":
+			return int(_chest_item(i)[1])
 		"grid":
 			return _grid_counts[i]
 	return _f_counts[i]
@@ -172,6 +229,8 @@ func _get_dur(kind: String, i: int) -> int:
 			return inv.dur_at(i)
 		"eq":
 			return inv.dur_at(Inventory.SIZE + i)
+		"chest":
+			return maxi(int(_chest_item(i)[2]), 0)
 		"grid":
 			return _grid_durs[i] if _grid_counts[i] > 0 else 0
 	return _f_durs[i] if _f_counts[i] > 0 else 0
@@ -188,6 +247,8 @@ func _put(kind: String, i: int, id: int, n: int, dur := -1) -> void:
 			inv.set_slot(i, id, n, dur)
 		"eq":
 			inv.set_slot(Inventory.SIZE + i, id, n, dur)
+		"chest":
+			pass   # sandığa eşya konmaz
 		"grid":
 			_grid_ids[i] = id
 			_grid_counts[i] = n
@@ -231,12 +292,15 @@ func _gui_input(event: InputEvent) -> void:
 		# Sürükle-bırak: basılan yuvadan farklı bir yuvanın üzerinde bırakıldıysa oraya koy.
 		if _press_slot != -1 and si != -1 and si != _press_slot and _cur_n > 0:
 			var kind: String = _slots[si]["kind"]
-			if kind != "result" and kind != "fout":
+			if kind != "result" and kind != "fout" and kind != "chest":
 				_place(kind, _slots[si]["i"], false)
 		_press_slot = -1
 		return
 	if _close.has_point(event.position):
 		close()
+		return
+	if mode == MODE_CHEST and _take_all.has_point(event.position):
+		take_all()
 		return
 	if si == -1:
 		return
@@ -252,6 +316,10 @@ func press(kind: String, i: int, right := false) -> void:
 	_press_can_halve = false
 	if kind == "result":
 		_craft()
+		return
+	if kind == "chest":
+		if _cur_n == 0:
+			take_from_chest(i)
 		return
 	var id := _get_id(kind, i)
 	var n := _get_n(kind, i)
@@ -321,6 +389,10 @@ func _craft() -> void:
 		return
 	var out: int = r["out"]
 	var n: int = r["n"]
+	var need := int(Items.prop(out, "lvl", 0))
+	if game.stats.level < need:
+		_hint = "%s için level %d gerekli" % [Items.item_name(out), need]
+		return
 	if not inv.can_add(out, n):
 		_hint = "Envanter dolu"
 		return
@@ -338,6 +410,9 @@ func _craft() -> void:
 
 func _process(delta: float) -> void:
 	if not visible:
+		return
+	if mode == MODE_CHEST and (chest == null or not is_instance_valid(chest)):
+		close()
 		return
 	if _press_slot != -1 and _press_can_halve:
 		_layout()
@@ -384,6 +459,11 @@ func _draw() -> void:
 	draw_rect(_close, Color(0.62, 0.2, 0.2))
 	draw_string(font, Vector2(_close.position.x, _close.position.y + 32.0), "X", HORIZONTAL_ALIGNMENT_CENTER, _close.size.x, 26, Color.WHITE)
 	var recipe := {} if mode == MODE_FURNACE else _recipe()
+	if mode == MODE_CHEST:
+		draw_string(font, Vector2(_panel.position.x + PAD, _panel.position.y + 56.0 + STEP - 12.0), "Almak istediğin eşyaya dokun", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, ink)
+		draw_rect(_take_all, Color(0.25, 0.55, 0.25))
+		draw_rect(_take_all, Color(0.2, 0.2, 0.2), false, 2.0)
+		draw_string(font, Vector2(_take_all.position.x, _take_all.position.y + 40.0), "Hepsini Al", HORIZONTAL_ALIGNMENT_CENTER, _take_all.size.x, 24, Color.WHITE)
 	if mode == MODE_INVENTORY:
 		var ex := _panel.position.x + PAD
 		var ey := _panel.position.y + 56.0

@@ -29,7 +29,6 @@ const SAFE_RADIUS := 48.0        # başlangıç noktasının çevresinde aktif m
 const BOSS_TYPES := ["golem", "giant_spider"]
 const BOSS_INTERVAL := 45.0      # boss doğma denemeleri arası süre (sn)
 const BOSS_CHANCE := 0.3         # her denemede doğma ihtimali: nadir
-const CHEST_PICKUP := 1.6        # ganimet sandığını toplama mesafesi
 const MOB_DESPAWN := 72.0        # oyuncudan bu kadar uzaklaşan mob silinir
 
 var world: World
@@ -329,6 +328,9 @@ func mine_at(p: Vector2, delta: float) -> void:
 	_mine_requested = true
 	if paused or menu_open():
 		return
+	if try_open_chest(p):
+		_mine_reset()
+		return
 	if try_attack(p):   # parmağın altında mob varsa kırmak yerine saldır
 		_mine_reset()
 		return
@@ -367,7 +369,13 @@ func _mine_reset() -> void:
 
 
 func _break(pos: Vector3i, block: int) -> void:
-	world.set_block(pos, Blocks.AIR)
+	# Yanında ya da üstünde su varsa kırılan bloğun yeri suyla dolar.
+	var fill := Blocks.AIR
+	for d: Vector3i in [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1), Vector3i(0, 0, -1), Vector3i(0, 1, 0)]:
+		if world.get_block(pos.x + d.x, pos.y + d.y, pos.z + d.z) == Blocks.WATER:
+			fill = Blocks.WATER
+			break
+	world.set_block(pos, fill)
 	# Taş ve cevherler yalnızca uygun kazmayla eşya düşürür.
 	if Items.can_harvest(block, inv.id_at(selected)):
 		spawn_drop(Items.drop_of(block), 1, Vector3(pos) + Vector3(0.5, 0.4, 0.5))
@@ -381,7 +389,7 @@ func _break(pos: Vector3i, block: int) -> void:
 func place_at(p: Vector2) -> void:
 	if paused or menu_open():
 		return
-	if try_attack(p):
+	if try_open_chest(p) or try_attack(p):
 		return
 	var hit := _target(p)
 	if not hit.is_empty() and Blocks.is_interactive(hit["id"]):
@@ -618,32 +626,70 @@ func spawn_chest(pos: Vector3, items: Array) -> LootChest:
 	return c
 
 
-## Oyuncu sandığa yaklaşınca içindekiler envantere geçer; sığmayanlar sandıkta kalır.
 func _update_chests() -> void:
-	var center := player.position + Vector3(0, 0.6, 0)
 	var i := chests.size() - 1
 	while i >= 0:
 		var c := chests[i]
 		if not is_instance_valid(c) or c.expired:
 			chests.remove_at(i)
-		elif c.position.distance_to(center) < CHEST_PICKUP and death_timer <= 0.0:
-			var got: PackedStringArray = []
-			var left := []
-			for it: Array in c.items:
-				var rest := inv.add(it[0], it[1], it[2])
-				if rest < int(it[1]):
-					got.append(Items.item_name(it[0]) + ("" if it[1] - rest <= 1 else " x%d" % (it[1] - rest)))
-				if rest > 0:
-					left.append([it[0], rest, it[2]])
-			c.items = left
-			if not got.is_empty():
-				toast("Ganimet: " + ", ".join(got))
-			elif toast_timer <= 0.0:
-				toast("Envanter dolu")
-			if left.is_empty():
-				c.queue_free()
-				chests.remove_at(i)
 		i -= 1
+
+
+## Ekran noktasının altındaki (bloklardan önce gelen) en yakın sandık.
+func _chest_at(p: Vector2) -> LootChest:
+	if chests.is_empty():
+		return null
+	var ray := screen_ray(p)
+	var limit := REACH + (4.0 if player.third_person else 0.0)
+	var hit := world.raycast(ray[0], ray[1], limit)
+	if not hit.is_empty():
+		limit = minf(limit, float(hit["dist"]) + 0.3)
+	var best: LootChest = null
+	for c in chests:
+		if is_instance_valid(c) and not c.expired:
+			var t := _ray_box(ray[0], ray[1], c.position + Vector3(-0.45, -0.15, -0.45), c.position + Vector3(0.45, 0.75, 0.45))
+			if t >= 0.0 and t < limit:
+				limit = t
+				best = c
+	return best
+
+
+## Işının kutuya çarptığı uzaklık; çarpmıyorsa -1.
+func _ray_box(origin: Vector3, dir: Vector3, lo: Vector3, hi: Vector3) -> float:
+	var t0 := 0.0
+	var t1 := 1.0e9
+	for a in 3:
+		if absf(dir[a]) < 1.0e-6:
+			if origin[a] < lo[a] or origin[a] > hi[a]:
+				return -1.0
+		else:
+			var ta := (lo[a] - origin[a]) / dir[a]
+			var tb := (hi[a] - origin[a]) / dir[a]
+			t0 = maxf(t0, minf(ta, tb))
+			t1 = minf(t1, maxf(ta, tb))
+			if t0 > t1:
+				return -1.0
+	return t0
+
+
+## Ekran noktasında sandık varsa içeriğini açar.
+func try_open_chest(p: Vector2) -> bool:
+	var c := _chest_at(p)
+	if c == null:
+		return false
+	open_chest(c)
+	return true
+
+
+## Sandığın içeriğini gösterir; oyuncu istediği eşyaları alır. Ekran açıkken sandığın süresi işlemez.
+func open_chest(c: LootChest) -> void:
+	if paused or menu_open() or death_timer > 0.0:
+		return
+	hud.release_all()
+	_mine_reset()
+	player.controls_enabled = false
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	ui.open_chest(c)
 
 
 ## Dünyada yükselip kaybolan yazı (hasar, XP).

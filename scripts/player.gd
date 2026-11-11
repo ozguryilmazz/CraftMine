@@ -189,7 +189,7 @@ func _simulate(delta: float) -> void:
 
 	if in_water:
 		vel.y = maxf(vel.y - 7.0 * delta, -3.0)
-		if jump:
+		if jump and vel.y < 3.6:
 			vel.y = minf(vel.y + 22.0 * delta, 3.6)
 	else:
 		vel.y = maxf(vel.y - GRAVITY * delta, -50.0)
@@ -224,6 +224,20 @@ func _simulate(delta: float) -> void:
 		var ay := floori(_pos.y + 0.1)
 		if world.is_solid(ax, ay, az) and not world.is_solid(ax, ay + 1, az) and not world.is_solid(ax, ay + 2, az):
 			vel.y = JUMP_VEL if not in_water else 3.6
+	# Sudan karaya çıkış: kıyıya doğru yüzerken önündeki kenar erişilebilir yükseklikteyse sudan sıçrar.
+	if blocked and in_water and wish.length() > 0.3:
+		var wa := _pos + wish.normalized() * 0.7
+		var wx := floori(wa.x)
+		var wz := floori(wa.z)
+		var wy := floori(_pos.y + 0.1)
+		for dy in 3:
+			var ty := wy + dy
+			if world.is_solid(wx, ty, wz) and not world.is_solid(wx, ty + 1, wz) and not world.is_solid(wx, ty + 2, wz):
+				if ty + 1.0 - _pos.y <= 1.75:
+					vel.y = maxf(vel.y, 9.6)
+				else:
+					vel.y = maxf(vel.y, 3.6)   # kenar henüz yüksek: önce yüzeye doğru yüksel
+				break
 	if _pos.y < -20.0:
 		_pos = Vector3(_pos.x, World.CH + 4, _pos.z)
 		vel = Vector3.ZERO

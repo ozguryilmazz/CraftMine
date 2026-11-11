@@ -236,7 +236,14 @@ func _draw() -> void:
 		draw_rect(r, Color(0.75, 0.75, 0.75, 0.8), false, 2.0)
 	var sel := _slot_rect(game.selected).grow(3.0)
 	draw_rect(sel, Color(1, 1, 1), false, 4.0)
-	var held_name := Items.item_name(inv.id_at(game.selected))
+	var held_id := inv.id_at(game.selected)
+	var held_name := Items.item_name(held_id)
+	if Items.kind(held_id) == "sword":
+		var need := int(Items.prop(held_id, "lvl", 0))
+		if game.stats.level >= need:
+			held_name += "  (+%d hasar)" % int(Items.prop(held_id, "dmg", 0))
+		else:
+			held_name += "  (level %d gerekli)" % need
 	if held_name != "":
 		draw_string(_font, Vector2(0, sel.position.y - 40.0), held_name, HORIZONTAL_ALIGNMENT_CENTER, size.x, 24, white)
 	_draw_health()

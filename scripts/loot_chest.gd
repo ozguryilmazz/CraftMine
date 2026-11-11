@@ -8,6 +8,7 @@ const HALF := 0.25
 var items := []            # [[eşya, adet, dayanıklılık], ...]
 var age := 0.0
 var expired := false
+var held := false          # içeriği ekranda açıkken süre işlemez
 var world: World
 var _vel := Vector3(0, 3.5, 0)
 var _model: Node3D
@@ -53,13 +54,14 @@ func _box(pos: Vector3, size: Vector3, color: Color) -> void:
 
 func _process(delta: float) -> void:
 	delta = minf(delta, 0.05)
-	age += delta
+	if not held:
+		age += delta
 	if age >= LIFETIME:
 		expired = true
 		queue_free()
 		return
 	var left := LIFETIME - age
-	_label.text = str(ceili(left))
+	_label.text = "Sandık  %d" % ceili(left)
 	_label.modulate = Color(1.0, 0.4, 0.3) if left <= 3.0 else Color(1.0, 0.95, 0.6)
 	# Son 3 saniyede yanıp söner
 	_model.visible = left > 3.0 or fmod(left, 0.4) > 0.15
