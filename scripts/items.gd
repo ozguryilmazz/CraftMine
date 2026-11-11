@@ -26,6 +26,83 @@ const TIER_SPEED := [2.0, 4.0, 6.0, 12.0, 8.0]
 const TIER_LEVEL := [0, 1, 2, 0, 3]
 const NAMES := {100: "Çubuk", 101: "Kömür", 102: "Demir Külçesi", 103: "Altın Külçesi", 104: "Elmas"}
 
+# ---------- RPG eşyaları (mns2026 tablosu) ----------
+const SWORD_WOOD := 130
+const SWORD_STONE := 131
+const SWORD_IRON := 132
+const SWORD_GOLD := 133
+const SWORD_DIAMOND := 134
+const SWORD_NETHER := 135
+const HELMET := 140
+const CHESTPLATE := 141
+const LEGGINGS := 142
+const SHIELD_WOOD := 145
+const SHIELD_IRON := 146
+const SHIELD_DIAMOND := 147
+const MEAT_CHICKEN := 150
+const MEAT_PORK := 151
+const MEAT_BEEF := 152
+const MEAT_MUTTON := 153
+const ROTTEN_FLESH := 154
+const POTION_ATTACK := 160
+const POTION_INT := 161
+const POTION_DEFENSE := 162
+const POTION_SPEED := 163
+const TOTEM := 170
+const CROWN := 171
+
+## Tüm RPG eşyaları tek tablodan okunur; yeni eşya (dükkan vb.) eklemek için buraya satır eklemek yeterlidir.
+##   n: ad            k: tür (sword / helmet / chest / legs / shield / food / potion / totem / misc)
+##   dmg: saldırı bonusu      hp: can bonusu        dur: dayanıklılık (kaç vuruş / darbe)
+##   lvl: kullanmak için gereken level
+##   heal: toplam doldurduğu can, rate: saniyede doldurduğu can (yiyecek)
+##   stat, amount, time: iksirin etkilediği stat, miktarı ve süresi (sn)
+##   stack: en fazla yığın     price: kakacoin değeri (dükkan için; şimdilik 0)
+const DEFS := {
+	130: {"n": "Tahta Kılıç", "k": "sword", "dmg": 4, "dur": 10, "lvl": 0},
+	131: {"n": "Taş Kılıç", "k": "sword", "dmg": 6, "dur": 15, "lvl": 2},
+	132: {"n": "Demir Kılıç", "k": "sword", "dmg": 8, "dur": 20, "lvl": 4},
+	133: {"n": "Altın Kılıç", "k": "sword", "dmg": 10, "dur": 25, "lvl": 6},
+	134: {"n": "Elmas Kılıç", "k": "sword", "dmg": 15, "dur": 40, "lvl": 9},
+	135: {"n": "Nether Kılıç", "k": "sword", "dmg": 25, "dur": 60, "lvl": 12},
+	140: {"n": "Kafalık", "k": "helmet", "hp": 2, "dur": 10},
+	141: {"n": "Göğüslük", "k": "chest", "hp": 5, "dur": 15},
+	142: {"n": "Pantolon ve Ayakkabı", "k": "legs", "hp": 8, "dur": 15},
+	145: {"n": "Tahta Kalkan", "k": "shield", "hp": 4, "dur": 15},
+	146: {"n": "Demir Kalkan", "k": "shield", "hp": 8, "dur": 25},
+	147: {"n": "Elmas Kalkan", "k": "shield", "hp": 10, "dur": 35},
+	150: {"n": "Pişmiş Tavuk Eti", "k": "food", "heal": 10, "rate": 2.0},
+	151: {"n": "Pişmiş Domuz Eti", "k": "food", "heal": 10, "rate": 2.0},
+	152: {"n": "Pişmiş İnek Eti", "k": "food", "heal": 10, "rate": 2.0},
+	153: {"n": "Pişmiş Koyun Eti", "k": "food", "heal": 10, "rate": 2.0},
+	154: {"n": "Çürük Zombi Eti", "k": "food", "heal": 4, "rate": 2.0},
+	160: {"n": "Saldırı İksiri", "k": "potion", "stat": "attack", "amount": 3, "time": 300.0, "stack": 16},
+	161: {"n": "Zeka İksiri", "k": "potion", "stat": "intel", "amount": 3, "time": 300.0, "stack": 16},
+	162: {"n": "Savunma İksiri", "k": "potion", "stat": "health", "amount": 3, "time": 300.0, "stack": 16},
+	163: {"n": "Hız İksiri", "k": "potion", "stat": "speed", "amount": 3, "time": 300.0, "stack": 16},
+	170: {"n": "Ölümsüzlük Totemi", "k": "totem", "stack": 1},
+	171: {"n": "Kral Tacı", "k": "misc", "stack": 1},
+}
+
+
+## Tablodaki bir alanı okur (yoksa varsayılanı döndürür).
+static func prop(id: int, key: String, default: Variant = 0) -> Variant:
+	var d: Variant = DEFS.get(id)
+	return d.get(key, default) if d != null else default
+
+
+static func kind(id: int) -> String:
+	return str(prop(id, "k", ""))
+
+
+## Eşyanın tam dayanıklılığı (0: dayanıklılığı yok, kırılmaz).
+static func max_durability(id: int) -> int:
+	return int(prop(id, "dur", 0))
+
+
+static func price(id: int) -> int:
+	return int(prop(id, "price", 0))
+
 
 static func tool(tier: int, type: int) -> int:
 	return TOOL_BASE + tier * 3 + type
@@ -48,7 +125,9 @@ static func tool_type(id: int) -> int:
 
 
 static func max_stack(id: int) -> int:
-	return 1 if is_tool(id) else 64
+	if is_tool(id) or max_durability(id) > 0:
+		return 1
+	return int(prop(id, "stack", 64))
 
 
 static func item_name(id: int) -> String:
@@ -58,6 +137,8 @@ static func item_name(id: int) -> String:
 		return Blocks.NAMES[id] if id < Blocks.COUNT else "?"
 	if is_tool(id):
 		return "%s %s" % [TIER_NAMES[tool_tier(id)], TYPE_NAMES[tool_type(id)]]
+	if DEFS.has(id):
+		return DEFS[id]["n"]
 	return NAMES.get(id, "?")
 
 
@@ -93,8 +174,25 @@ static func draw_icon(ci: CanvasItem, r: Rect2, id: int) -> void:
 		_face(ci, tex, ts, [lt, top, rt, mid], Blocks.TILES[id][0], 1.0)
 		_face(ci, tex, ts, [lt, mid, bot, lb], Blocks.TILES[id][1], 0.78)
 		_face(ci, tex, ts, [mid, rt, rb, bot], Blocks.TILES[id][1], 0.58)
+	elif DEFS.has(id):
+		# Simgesi henüz çizilmemiş eşya: türüne göre renkli geçici kare
+		var cols := {"sword": Color(0.75, 0.78, 0.85), "food": Color(0.8, 0.45, 0.3), "potion": Color(0.6, 0.35, 0.8)}
+		var col: Color = cols.get(kind(id), Color(0.5, 0.65, 0.55))
+		ci.draw_rect(r.grow(-r.size.x * 0.12), col)
+		ci.draw_rect(r.grow(-r.size.x * 0.12), Color(0.1, 0.1, 0.1), false, 2.0)
 	else:
 		ci.draw_texture_rect_region(Atlas.item_texture(), r, Atlas.item_region(icon_index(id)))
+
+
+## Dayanıklılık çubuğu (yalnızca yıpranmış eşyalarda görünür): yeşilden kırmızıya.
+static func draw_dur_bar(ci: CanvasItem, r: Rect2, id: int, dur: int) -> void:
+	var full := max_durability(id)
+	if full <= 0 or dur <= 0 or dur >= full:
+		return
+	var f := float(dur) / full
+	var bar := Rect2(r.position.x, r.end.y - 5.0, r.size.x, 5.0)
+	ci.draw_rect(bar, Color(0, 0, 0, 0.85))
+	ci.draw_rect(Rect2(bar.position, Vector2(bar.size.x * f, bar.size.y)), Color(1.0 - f, f, 0.1).lightened(0.2))
 
 
 static func _face(ci: CanvasItem, tex: Texture2D, ts: Vector2, pts: Array, tile: int, shade: float) -> void:

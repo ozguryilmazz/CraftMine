@@ -17,6 +17,8 @@ var player: Player
 var hud: Hud
 var ui: InventoryUI
 var inv := Inventory.new()
+## Oyuncuya ait kalıcı veriler (kakacoin; ileride statlar, level, XP). Dünya kaydıyla birlikte saklanır.
+var pdata := {"coins": 0}
 var selected := 0           # seçili hotbar yuvası
 var paused := false
 var info_text := ""
@@ -65,6 +67,7 @@ func _ready() -> void:
 	if Session.mode != "join" and Session.saved_pos is Vector3:
 		player.position = Session.saved_pos
 		inv.from_array(Session.saved_inv)
+		pdata.merge(Session.saved_player, true)
 	else:
 		var a := randf() * TAU if _online else 0.0
 		var sx := int(cos(a) * 3.0)
@@ -354,20 +357,20 @@ func select_slot(i: int) -> void:
 
 # ---------- Düşen eşyalar ----------
 
-func spawn_drop(id: int, n: int, pos: Vector3) -> void:
+func spawn_drop(id: int, n: int, pos: Vector3, dur := -1) -> void:
 	if id <= 0 or n <= 0:
 		return
 	if _drops.size() >= MAX_DROPS:
 		_drops.pop_front().queue_free()
 	var d := ItemDrop.new()
 	add_child(d)
-	d.setup(world, id, n, pos)
+	d.setup(world, id, n, pos, dur)
 	_drops.append(d)
 
 
 ## Envantere sığmayan eşyayı oyuncunun önüne bırakır.
-func drop_from_player(id: int, n: int) -> void:
-	spawn_drop(id, n, player.eye_position() + player.look_dir() * 1.2)
+func drop_from_player(id: int, n: int, dur := -1) -> void:
+	spawn_drop(id, n, player.eye_position() + player.look_dir() * 1.2, dur)
 
 
 func _update_drops(delta: float) -> void:
@@ -380,7 +383,7 @@ func _update_drops(delta: float) -> void:
 		elif d.age > ItemDrop.PICKUP_DELAY and inv.can_add(d.item_id, 1):
 			var dist := d.position.distance_to(center)
 			if dist < PICKUP_RADIUS:
-				d.count = inv.add(d.item_id, d.count)
+				d.count = inv.add(d.item_id, d.count, d.dur)
 				if d.count <= 0:
 					d.queue_free()
 					_drops.remove_at(i)
@@ -482,7 +485,7 @@ func toggle_pause() -> void:
 func _save() -> void:
 	_save_timer = 0.0
 	if Session.mode != "join":
-		Session.save_world(world.export_edits(), player.position, inv.to_array())
+		Session.save_world(world.export_edits(), player.position, inv.to_array(), pdata)
 
 
 func exit_to_menu() -> void:

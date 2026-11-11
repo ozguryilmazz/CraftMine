@@ -21,6 +21,7 @@ var theme: Theme
 var world_edits := {}
 var saved_pos: Variant = null
 var saved_inv: Variant = null
+var saved_player := {}
 
 
 func _ready() -> void:
@@ -68,6 +69,7 @@ func load_world() -> void:
 	world_edits = {}
 	saved_pos = null
 	saved_inv = null
+	saved_player = {}
 	world_seed = randi() & 0x7fffffff
 	var f := FileAccess.open(SAVE_PATH, FileAccess.READ)
 	if f == null:
@@ -78,15 +80,19 @@ func load_world() -> void:
 		world_edits = d.get("edits", {})
 		saved_pos = d.get("pos")
 		saved_inv = d.get("inv")
+		var pl: Variant = d.get("player")
+		if pl is Dictionary:
+			saved_player = pl
 
 
-func save_world(edits: Dictionary, pos: Vector3, inv: Array) -> void:
+func save_world(edits: Dictionary, pos: Vector3, inv: Array, player := {}) -> void:
 	world_edits = edits
 	saved_pos = pos
 	saved_inv = inv
+	saved_player = player
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f != null:
-		f.store_var({"seed": world_seed, "edits": edits, "pos": pos, "inv": inv})
+		f.store_var({"v": 2, "seed": world_seed, "edits": edits, "pos": pos, "inv": inv, "player": player})
 
 
 func delete_world() -> void:

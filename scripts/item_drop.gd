@@ -9,6 +9,7 @@ const HALF := 0.14
 
 var item_id := 0
 var count := 1
+var dur := -1               # kalan dayanıklılık (-1: tam)
 var age := 0.0
 var world: World
 var _vel := Vector3.ZERO
@@ -29,10 +30,11 @@ static func make_visual(id: int) -> MeshInstance3D:
 	return mi
 
 
-func setup(p_world: World, id: int, n: int, pos: Vector3) -> void:
+func setup(p_world: World, id: int, n: int, pos: Vector3, p_dur := -1) -> void:
 	world = p_world
 	item_id = id
 	count = n
+	dur = p_dur
 	position = pos
 	_vel = Vector3(randf_range(-1.2, 1.2), 3.0, randf_range(-1.2, 1.2))
 	_vis = make_visual(id)

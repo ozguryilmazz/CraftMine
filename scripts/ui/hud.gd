@@ -213,6 +213,7 @@ func _draw() -> void:
 		var id := inv.id_at(i)
 		if id > 0:
 			Items.draw_icon(self, r.grow(-9.0), id)
+			Items.draw_dur_bar(self, r.grow(-9.0), id, inv.durs[i])
 			var n := inv.counts[i]
 			if n > 1:
 				var pos := Vector2(r.position.x, r.end.y - 6.0)

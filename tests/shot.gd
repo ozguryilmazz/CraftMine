@@ -126,6 +126,13 @@ func _ready() -> void:
 	game.ui.halve_held("grid", 4)
 	game.ui.press("grid", 7)
 	game.ui.press("inv", 30)
+	# Dayanıklılık: yıpranmış kılıç ve kalkanı yuvalar arasında taşı, değer korunmalı
+	game.inv.set_slot(33, Items.SWORD_IRON, 1, 6)
+	game.inv.set_slot(34, Items.SHIELD_DIAMOND, 1, 30)
+	game.ui.press("inv", 33)
+	game.ui.press("inv", 34)
+	game.ui.press("inv", 35)
+	print("dur swap: slot34=", game.inv.id_at(34), "/", game.inv.dur_at(34), " slot35=", game.inv.id_at(35), "/", game.inv.dur_at(35), " hand=", game.ui._cur_n)
 	game.ui._layout()
 	game.ui._pointer = game.ui._slots[40]["r"].get_center()
 	await get_tree().create_timer(0.3).timeout

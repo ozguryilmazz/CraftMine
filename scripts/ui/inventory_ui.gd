@@ -27,8 +27,11 @@ var _grid_ids := PackedInt32Array()     # 3x3 (2x2 modunda sol üst köşe kulla
 var _grid_counts := PackedInt32Array()
 var _f_ids := PackedInt32Array()        # fırın: 0 girdi, 1 yakıt, 2 çıktı
 var _f_counts := PackedInt32Array()
+var _grid_durs := PackedInt32Array()    # ızgara ve fırındaki eşyaların kalan dayanıklılığı
+var _f_durs := PackedInt32Array()
 var _cur_id := 0                        # "elde" tutulan yığın
 var _cur_n := 0
+var _cur_dur := 0
 var _fuel_left := 0.0
 var _fuel_total := 1.0
 var _progress := 0.0
@@ -50,6 +53,8 @@ func _ready() -> void:
 	_grid_counts.resize(9)
 	_f_ids.resize(3)
 	_f_counts.resize(3)
+	_grid_durs.resize(9)
+	_f_durs.resize(3)
 	visible = false
 
 
@@ -66,28 +71,31 @@ func close() -> void:
 	if not visible:
 		return
 	for i in 9:
-		_give_back(_grid_ids[i], _grid_counts[i])
+		_give_back(_grid_ids[i], _grid_counts[i], _grid_durs[i])
 		_grid_ids[i] = 0
 		_grid_counts[i] = 0
+		_grid_durs[i] = 0
 	for i in 3:
-		_give_back(_f_ids[i], _f_counts[i])
+		_give_back(_f_ids[i], _f_counts[i], _f_durs[i])
 		_f_ids[i] = 0
 		_f_counts[i] = 0
-	_give_back(_cur_id, _cur_n)
+		_f_durs[i] = 0
+	_give_back(_cur_id, _cur_n, _cur_dur)
 	_cur_id = 0
 	_cur_n = 0
+	_cur_dur = 0
 	_fuel_left = 0.0
 	_press_slot = -1
 	visible = false
 	game.on_ui_closed()
 
 
-func _give_back(id: int, n: int) -> void:
+func _give_back(id: int, n: int, dur := -1) -> void:
 	if id <= 0 or n <= 0:
 		return
-	var left := inv.add(id, n)
+	var left := inv.add(id, n, dur)
 	if left > 0:
-		game.drop_from_player(id, left)
+		game.drop_from_player(id, left, dur)
 
 
 # ---------- Yerleşim ----------
@@ -151,19 +159,32 @@ func _get_n(kind: String, i: int) -> int:
 	return _f_counts[i]
 
 
-func _put(kind: String, i: int, id: int, n: int) -> void:
+func _get_dur(kind: String, i: int) -> int:
+	match kind:
+		"inv":
+			return inv.dur_at(i)
+		"grid":
+			return _grid_durs[i] if _grid_counts[i] > 0 else 0
+	return _f_durs[i] if _f_counts[i] > 0 else 0
+
+
+## dur: kalan dayanıklılık (-1: tam). Dayanıklılığı olmayan eşyalarda yok sayılır.
+func _put(kind: String, i: int, id: int, n: int, dur := -1) -> void:
 	if n <= 0:
 		id = 0
 		n = 0
+	dur = Inventory._norm_dur(id, dur) if id > 0 else 0
 	match kind:
 		"inv":
-			inv.set_slot(i, id, n)
+			inv.set_slot(i, id, n, dur)
 		"grid":
 			_grid_ids[i] = id
 			_grid_counts[i] = n
+			_grid_durs[i] = dur
 		_:
 			_f_ids[i] = id
 			_f_counts[i] = n
+			_f_durs[i] = dur
 
 
 func _recipe() -> Dictionary:
@@ -236,6 +257,7 @@ func press(kind: String, i: int, right := false) -> void:
 	var k := n if not right else ceili(n / 2.0)
 	_cur_id = id
 	_cur_n = k
+	_cur_dur = _get_dur(kind, i)
 	_put(kind, i, id, n - k)
 	_press_can_halve = not right and k > 1
 	_hint = "%s x%d" % [Items.item_name(id), k]
@@ -258,19 +280,22 @@ func _place(kind: String, i: int, one: bool) -> void:
 	var n := _get_n(kind, i)
 	if n == 0:
 		var k := 1 if one else _cur_n
-		_put(kind, i, _cur_id, k)
+		_put(kind, i, _cur_id, k, _cur_dur)
 		_cur_n -= k
-	elif id == _cur_id:
+	elif id == _cur_id and Items.max_stack(id) > 1:
 		var k := mini(1 if one else _cur_n, Items.max_stack(id) - n)
 		_put(kind, i, id, n + k)
 		_cur_n -= k
 	else:
-		_put(kind, i, _cur_id, _cur_n)
+		var d := _get_dur(kind, i)
+		_put(kind, i, _cur_id, _cur_n, _cur_dur)
 		_cur_id = id
 		_cur_n = n
+		_cur_dur = d
 	if _cur_n <= 0:
 		_cur_id = 0
 		_cur_n = 0
+		_cur_dur = 0
 		_hint = ""
 	else:
 		_hint = "%s x%d" % [Items.item_name(_cur_id), _cur_n]
@@ -291,6 +316,7 @@ func _craft() -> void:
 			_grid_counts[i] -= 1
 			if _grid_counts[i] == 0:
 				_grid_ids[i] = 0
+				_grid_durs[i] = 0
 	_hint = "%s x%d üretildi" % [Items.item_name(out), n]
 
 
@@ -355,7 +381,7 @@ func _draw() -> void:
 				_item(r, recipe["out"], recipe["n"])
 			_arrow(Vector2(r.position.x - STEP, r.position.y + SLOT * 0.5), 1.0)
 		else:
-			_item(r, _get_id(kind, s["i"]), _get_n(kind, s["i"]))
+			_item(r, _get_id(kind, s["i"]), _get_n(kind, s["i"]), _get_dur(kind, s["i"]))
 			if kind == "fout":
 				_arrow(Vector2(r.position.x - 2.0 * STEP, r.position.y + SLOT * 0.5), _progress / SMELT_TIME)
 				# Yakıt göstergesi (girdi ile yakıt yuvasının arası)
@@ -372,14 +398,15 @@ func _draw() -> void:
 		var c := _pointer - (Vector2(0, SLOT * 0.75) if Session.touch_mode else Vector2.ZERO)
 		var r := Rect2(c - Vector2(SLOT, SLOT) * 0.5, Vector2(SLOT, SLOT))
 		draw_rect(r.grow(2.0), Color(1, 1, 1, 0.25))
-		_item(r, _cur_id, _cur_n)
+		_item(r, _cur_id, _cur_n, _cur_dur)
 
 
 ## Eşyayı yuvanın içine sığacak şekilde (kenar boşluğuyla) çizer.
-func _item(r: Rect2, id: int, n: int) -> void:
+func _item(r: Rect2, id: int, n: int, dur := 0) -> void:
 	if id <= 0 or n <= 0:
 		return
 	Items.draw_icon(self, r.grow(-ICON_INSET), id)
+	Items.draw_dur_bar(self, r.grow(-ICON_INSET), id, dur)
 	if n > 1:
 		var pos := Vector2(r.position.x, r.end.y - 5.0)
 		draw_string(Session.font, pos + Vector2(1.5, 1.5), str(n), HORIZONTAL_ALIGNMENT_RIGHT, r.size.x - 4.0, 20, Color(0, 0, 0, 0.85))
