@@ -115,7 +115,10 @@ func _layout() -> void:
 		_slot(gx + 4.0 * STEP, top + STEP, "fout", 2)
 	else:
 		var n := 3 if mode == MODE_TABLE else 2
-		var gx := x0 + (1.0 if n == 3 else 1.5) * STEP
+		var gx := x0 + (1.0 if n == 3 else 3.5) * STEP
+		if mode == MODE_INVENTORY:   # ekipman yuvaları: kafalık, göğüslük / pantolon, kalkan
+			for i in Inventory.EQUIP:
+				_slot(x0 + (i % 2) * STEP, top + (0.5 + (i >> 1)) * STEP, "eq", i)
 		var gy := top + (0.0 if n == 3 else 0.5 * STEP)
 		for y in n:
 			for x in n:
@@ -145,6 +148,8 @@ func _get_id(kind: String, i: int) -> int:
 	match kind:
 		"inv":
 			return inv.id_at(i)
+		"eq":
+			return inv.id_at(Inventory.SIZE + i)
 		"grid":
 			return _grid_ids[i] if _grid_counts[i] > 0 else 0
 	return _f_ids[i] if _f_counts[i] > 0 else 0
@@ -154,6 +159,8 @@ func _get_n(kind: String, i: int) -> int:
 	match kind:
 		"inv":
 			return inv.counts[i]
+		"eq":
+			return inv.counts[Inventory.SIZE + i]
 		"grid":
 			return _grid_counts[i]
 	return _f_counts[i]
@@ -163,6 +170,8 @@ func _get_dur(kind: String, i: int) -> int:
 	match kind:
 		"inv":
 			return inv.dur_at(i)
+		"eq":
+			return inv.dur_at(Inventory.SIZE + i)
 		"grid":
 			return _grid_durs[i] if _grid_counts[i] > 0 else 0
 	return _f_durs[i] if _f_counts[i] > 0 else 0
@@ -177,6 +186,8 @@ func _put(kind: String, i: int, id: int, n: int, dur := -1) -> void:
 	match kind:
 		"inv":
 			inv.set_slot(i, id, n, dur)
+		"eq":
+			inv.set_slot(Inventory.SIZE + i, id, n, dur)
 		"grid":
 			_grid_ids[i] = id
 			_grid_counts[i] = n
@@ -276,6 +287,9 @@ func halve_held(kind: String, i: int) -> void:
 
 ## Eldeki yığını yuvaya bırakır. one: yalnızca 1 adet.
 func _place(kind: String, i: int, one: bool) -> void:
+	if kind == "eq" and not Inventory.fits_equip(i, _cur_id):
+		_hint = "Buraya yalnızca %s takılır" % Inventory.EQUIP_NAMES[i]
+		return
 	var id := _get_id(kind, i)
 	var n := _get_n(kind, i)
 	if n == 0:
@@ -370,6 +384,11 @@ func _draw() -> void:
 	draw_rect(_close, Color(0.62, 0.2, 0.2))
 	draw_string(font, Vector2(_close.position.x, _close.position.y + 32.0), "X", HORIZONTAL_ALIGNMENT_CENTER, _close.size.x, 26, Color.WHITE)
 	var recipe := {} if mode == MODE_FURNACE else _recipe()
+	if mode == MODE_INVENTORY:
+		var ex := _panel.position.x + PAD
+		var ey := _panel.position.y + 56.0
+		draw_string(font, Vector2(ex, ey + 22.0), "Ekipman", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, ink)
+		draw_string(font, Vector2(ex, ey + 0.5 * STEP + 2.0 * STEP + 20.0), "Can bonusu: +%d" % inv.equip_hp(), HORIZONTAL_ALIGNMENT_LEFT, -1, 18, ink)
 	for si in _slots.size():
 		var s := _slots[si]
 		var r: Rect2 = s["r"]
@@ -382,6 +401,10 @@ func _draw() -> void:
 			_arrow(Vector2(r.position.x - STEP, r.position.y + SLOT * 0.5), 1.0)
 		else:
 			_item(r, _get_id(kind, s["i"]), _get_n(kind, s["i"]), _get_dur(kind, s["i"]))
+			if kind == "eq" and _get_n(kind, s["i"]) == 0:
+				# Boş ekipman yuvası: takılacak eşyanın soluk silueti
+				var ghost: int = [Items.HELMET, Items.CHESTPLATE, Items.LEGGINGS, Items.SHIELD_IRON][s["i"]]
+				draw_texture_rect_region(Atlas.item_texture(), r.grow(-ICON_INSET), Atlas.item_region(Items.icon_index(ghost)), Color(0, 0, 0, 0.22))
 			if kind == "fout":
 				_arrow(Vector2(r.position.x - 2.0 * STEP, r.position.y + SLOT * 0.5), _progress / SMELT_TIME)
 				# Yakıt göstergesi (girdi ile yakıt yuvasının arası)

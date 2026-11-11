@@ -294,6 +294,34 @@ func _ready() -> void:
 	game.inv.set_slot(0, Items.SWORD_WOOD, 1)
 	game.select_slot(0)
 
+	# Ekipman: tak, yanlış yuvayı reddet, can bonusu, darbe alınca yıpranma
+	game.inv.set_slot(9, Items.HELMET, 1)
+	game.inv.set_slot(10, Items.CHESTPLATE, 1)
+	game.inv.set_slot(11, Items.LEGGINGS, 1)
+	game.inv.set_slot(12, Items.SHIELD_WOOD, 1, 2)
+	game.inv.set_slot(13, Items.SHIELD_IRON, 1)
+	game.open_ui(InventoryUI.MODE_INVENTORY)
+	game.ui.press("inv", 0)
+	game.ui.press("eq", 0)
+	print("sword into helmet slot: eq0=", game.inv.id_at(Inventory.SIZE), " hint=", game.ui._hint)
+	game.ui.press("inv", 0)
+	for i in 4:
+		game.ui.press("inv", 9 + i)
+		game.ui.press("eq", i)
+	await get_tree().create_timer(0.3).timeout
+	print("equipped: ", game.inv.id_at(Inventory.SIZE), ",", game.inv.id_at(Inventory.SIZE + 1), ",", game.inv.id_at(Inventory.SIZE + 2), ",", game.inv.id_at(Inventory.SIZE + 3),
+		" max_hp=", game.stats.max_hp(), " hand=", game.ui._cur_n)
+	await _shot("18_equipment")
+	game.ui.close()
+	game.stats.hp = float(game.stats.max_hp())
+	game._on_mob_hit(7.0)
+	game._on_mob_hit(7.0)
+	await get_tree().process_frame
+	print("after 2 hits: hp=", game.stats.hp, "/", game.stats.max_hp(), " helmet dur=", game.inv.dur_at(Inventory.SIZE), " shield=", game.inv.id_at(Inventory.SIZE + 3), " toast=", game.toast_text)
+	game.hurt(3.0)
+	print("fall damage does not wear armor: helmet dur=", game.inv.dur_at(Inventory.SIZE))
+	game.stats.hp = float(game.stats.max_hp())
+
 	# Karakter ekranı: XP kazan, level atla, puan dağıt
 	game.add_xp(250)
 	game.open_stats()

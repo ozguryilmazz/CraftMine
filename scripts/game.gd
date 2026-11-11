@@ -238,6 +238,7 @@ func _process(delta: float) -> void:
 	_mine_requested = false
 	_mine_cooldown = maxf(_mine_cooldown - delta, 0.0)
 	player.set_held(inv.id_at(selected))
+	stats.equip_hp = inv.equip_hp()
 	if not paused:
 		stats.tick(delta)
 	player.speed_mult = stats.speed_mult()
@@ -423,7 +424,7 @@ func spawn_mob(type: String, pos: Vector3) -> Mob:
 	add_child(m)
 	m.player = player
 	m.setup(world, type, pos)
-	m.hit_player.connect(hurt)
+	m.hit_player.connect(_on_mob_hit)
 	mobs.append(m)
 	return m
 
@@ -629,6 +630,21 @@ func float_text(text: String, color: Color, pos: Vector3) -> void:
 func _on_fell(height: float) -> void:
 	if height > SAFE_FALL:
 		hurt(floorf((height - SAFE_FALL) * FALL_DAMAGE))
+
+
+## Mob oyuncuya vurdu: hasar uygulanır ve takılı zırh / kalkan 1'er yıpranır.
+func _on_mob_hit(amount: float) -> void:
+	if death_timer > 0.0:
+		return
+	hurt(amount)
+	if death_timer > 0.0:
+		return   # öldü: ekipman zaten silindi
+	var broken := inv.wear_equipment()
+	if not broken.is_empty():
+		var names: PackedStringArray = []
+		for id in broken:
+			names.append(Items.item_name(id))
+		toast(", ".join(names) + " kırıldı")
 
 
 ## Oyuncuya hasar verir; can biterse ölüm cezası uygulanır.

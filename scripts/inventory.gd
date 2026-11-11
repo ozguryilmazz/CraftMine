@@ -5,6 +5,11 @@ extends RefCounted
 
 const SIZE := 36
 const HOTBAR := 9
+## Ekipman yuvaları ana envanterin ardından gelir (SIZE + 0..3): kafalık, göğüslük, pantolon, kalkan.
+const EQUIP := 4
+const TOTAL := SIZE + EQUIP
+const EQUIP_KINDS := ["helmet", "chest", "legs", "shield"]
+const EQUIP_NAMES := ["kafalık", "göğüslük", "pantolon", "kalkan"]
 
 var ids := PackedInt32Array()
 var counts := PackedInt32Array()
@@ -12,9 +17,9 @@ var durs := PackedInt32Array()
 
 
 func _init() -> void:
-	ids.resize(SIZE)
-	counts.resize(SIZE)
-	durs.resize(SIZE)
+	ids.resize(TOTAL)
+	counts.resize(TOTAL)
+	durs.resize(TOTAL)
 
 
 static func _norm_dur(id: int, dur: int) -> int:
@@ -102,16 +107,39 @@ func wear(slot: int, k := 1) -> bool:
 	return false
 
 
-## Tüm envanteri siler (ölüm cezası).
+## Ekipman yuvasına (0..3) bu eşya takılabilir mi?
+static func fits_equip(eq: int, id: int) -> bool:
+	return Items.kind(id) == EQUIP_KINDS[eq]
+
+
+## Takılı zırh ve kalkanların toplam can bonusu.
+func equip_hp() -> int:
+	var total := 0
+	for i in EQUIP:
+		total += int(Items.prop(id_at(SIZE + i), "hp", 0))
+	return total
+
+
+## Oyuncu darbe aldı: takılı her parça 1 yıpranır. Kırılan eşyaların kimliklerini döndürür.
+func wear_equipment() -> Array[int]:
+	var broken: Array[int] = []
+	for i in EQUIP:
+		var id := id_at(SIZE + i)
+		if id > 0 and wear(SIZE + i):
+			broken.append(id)
+	return broken
+
+
+## Tüm envanteri ve ekipmanı siler (ölüm cezası).
 func clear() -> void:
-	for i in SIZE:
+	for i in TOTAL:
 		set_slot(i, 0, 0)
 
 
 ## Kayıt: her yuva için (kimlik, adet, dayanıklılık).
 func to_array() -> Array:
 	var out := []
-	for i in SIZE:
+	for i in TOTAL:
 		out.append(ids[i])
 		out.append(counts[i])
 		out.append(durs[i])
@@ -122,8 +150,8 @@ func to_array() -> Array:
 func from_array(a: Variant) -> void:
 	if not (a is Array):
 		return
-	if a.size() == SIZE * 3:
-		for i in SIZE:
+	if a.size() == TOTAL * 3 or a.size() == SIZE * 3:   # SIZE * 3: ekipman yuvalarından önceki kayıtlar
+		for i in a.size() / 3:
 			set_slot(i, int(a[i * 3]), int(a[i * 3 + 1]), int(a[i * 3 + 2]))
 	elif a.size() == SIZE * 2:
 		for i in SIZE:
