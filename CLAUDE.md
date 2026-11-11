@@ -6,9 +6,9 @@ Kullanıcı Türkçe konuşur; yanıtlar Türkçe yazılır. Commit ve push işl
 
 ## Mevcut durum
 
-- **Sürüm:** 1.13.0 (version_code 17). Son commit konusu: tam ekran iki panelli envanter ekranı ve tarif listesinden hızlı üretim.
+- **Sürüm:** 1.13.1 (version_code 18). Son commit konusu: envanter ekranını kapatan dokunuşun HUD'daki görünüm butonunu tetiklemesi düzeltildi.
 - **Tamamlanan aşamalar:** 1–10 (aşağıdaki tabloya bakın) ve ilk telefon geri bildirimi düzeltmeleri.
-- **Sıradaki iş:** Kullanıcının v1.13.0'ı telefonda denemesi bekleniyor. Ardından Aşama 11 (çok oyunculu eşitleme).
+- **Sıradaki iş:** Kullanıcının v1.13.1'i telefonda denemesi bekleniyor. Ardından Aşama 11 (çok oyunculu eşitleme).
 - **Gerçek cihazda doğrulanmayanlar:** v1.12.1 düzeltmeleri, v1.13.0 envanter ekranı (dokunma, sürükle-bırak, sekmeler), boss'ların kendiliğinden doğması, çok oyunculu kodun tamamı, oyun içi güncelleme kontrolü.
 
 ## Proje
@@ -52,6 +52,7 @@ Dokunmatik kontrollü, Minecraft tarzı voxel oyun. Godot 4.5.1, GDScript, `gl_c
 ### Bu bilgisayardaki kısıtlar
 
 - **Avast HTTPS taraması** sertifikaları yeniden imzaladığı için Godot'nun ağ kodu bu PC'de TLS hatası verir. Çok oyunculu ve güncelleme kontrolü burada test edilemez; telefonlar etkilenmez. TLS doğrulamasını gevşetmek reddedildi, **etrafından dolanılmamalıdır**.
+- Dokunmatikte her dokunuş hem `InputEventScreenTouch` (HUD `_input`) hem de taklit fare olayı (arayüz `_gui_input`) olarak gelir. Üst üste binen butonlarda ikisi de tetiklenebilir; HUD'daki `_ignored` ve `game.ui_closed_frame` bunu önler. Bu davranış PC testinde yeniden üretilemez.
 - `tests/shot.gd` zamanlamaya duyarlıdır: rastgele mob doğması ve eşya toplama sonuçları oynatabilir. Bir adım beklenmedik sonuç verirse önce testin kendisinden şüphelenin.
 
 ## RPG kuralları (mns2026.xlsx + kullanıcı kararları)
@@ -112,6 +113,7 @@ Kaynaklar kullanıcının `Downloads` klasöründeki `mns2026.xlsx` ve `Yeni Met
 | 1.10.0 | Aşama 8: ekipman yuvaları |
 | 1.11.0 | Aşama 9: iksirler, totem |
 | 1.12.0 | Aşama 10: boss'lar |
+| 1.13.1 | Düzeltme: envanter / çalışma masası kapatılınca 3. şahıstan 1. şahsa geçilmesi (X butonu HUD'daki görünüm butonunun üstündeydi ve aynı dokunuş ikisine de ulaşıyordu; HUD artık ekran açıkken ya da kapanırken başlayan dokunuşları yok sayıyor) |
 | 1.13.0 | Envanter ekranı yeniden düzenlendi: tam ekran, kabartmalı iki panel, sekmeler, tarif listesinden hızlı üretim (malzemesi eksik tarifler kırmızı) |
 | 1.12.1 | Telefon geri bildirimi: sudan çıkış, suyun dolması, dokunarak açılan sandık, kılıç üretiminde level sınırı, eldeki kılıcın hasar göstergesi |
 

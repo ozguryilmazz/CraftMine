@@ -44,6 +44,7 @@ var hurt_flash := 0.0       # hasar alınca ekranın kızarması (HUD okur)
 var death_timer := 0.0      # > 0 iken "Öldün" yazısı gösterilir
 var toast_text := ""        # ekranın üstünde kısa süreli bildirim (level atlama vb.)
 var toast_timer := 0.0
+var ui_closed_frame := -1   # envanter / karakter ekranının kapandığı kare (HUD aynı dokunuşu yok sayar)
 var selected := 0           # seçili hotbar yuvası
 var paused := false
 var info_text := ""
@@ -841,6 +842,7 @@ func open_ui(mode: int) -> void:
 
 
 func on_ui_closed() -> void:
+	ui_closed_frame = Engine.get_process_frames()
 	player.controls_enabled = not paused
 	if not Session.touch_mode and not paused:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED

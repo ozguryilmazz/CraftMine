@@ -24,6 +24,7 @@ var _look_time := 0.0
 var _look_moved := false
 var _look_mining := false
 var _mine_drag := false
+var _ignored := {}   # bir ekran açıkken ya da kapanırken başlayan dokunuşlar: bırakılana kadar yok sayılır
 var _jump_id := -1
 var _font: Font
 
@@ -73,16 +74,23 @@ func _blocked() -> bool:
 
 
 func _input(event: InputEvent) -> void:
-	if _blocked():
-		return
 	if touch_mode:
+		# Ekranı kapatan dokunuş (ör. X butonu) aynı anda HUD'a da ulaşır; altındaki butonu tetiklememeli.
+		var closing: bool = Engine.get_process_frames() - game.ui_closed_frame <= 1
 		if event is InputEventScreenTouch:
 			if event.pressed:
-				_touch_down(event.index, event.position)
-			else:
+				if _blocked() or closing:
+					_ignored[event.index] = true
+				else:
+					_ignored.erase(event.index)
+					_touch_down(event.index, event.position)
+			elif not _ignored.erase(event.index) and not _blocked():
 				_touch_up(event.index)
 		elif event is InputEventScreenDrag:
-			_touch_drag(event.index, event.position, event.relative)
+			if not _ignored.has(event.index) and not _blocked():
+				_touch_drag(event.index, event.position, event.relative)
+		return
+	if _blocked():
 		return
 	var captured := Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
 	if event is InputEventMouseMotion and captured:
