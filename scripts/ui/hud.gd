@@ -201,6 +201,8 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	var white := Color(1, 1, 1, 0.85)
 	var dark := Color(0, 0, 0, 0.45)
+	if game.hurt_flash > 0.0:
+		draw_rect(Rect2(Vector2.ZERO, size), Color(0.8, 0.0, 0.0, 0.35 * game.hurt_flash))
 	if not touch_mode:
 		var c := size * 0.5
 		draw_line(c - Vector2(11, 0), c + Vector2(11, 0), white, 2.0)
@@ -224,7 +226,13 @@ func _draw() -> void:
 	draw_rect(sel, Color(1, 1, 1), false, 4.0)
 	var held_name := Items.item_name(inv.id_at(game.selected))
 	if held_name != "":
-		draw_string(_font, Vector2(0, sel.position.y - 12.0), held_name, HORIZONTAL_ALIGNMENT_CENTER, size.x, 24, white)
+		draw_string(_font, Vector2(0, sel.position.y - 40.0), held_name, HORIZONTAL_ALIGNMENT_CENTER, size.x, 24, white)
+	_draw_health()
+	if game.death_timer > 0.0:
+		var a := clampf(game.death_timer, 0.0, 1.0)
+		draw_rect(Rect2(0, size.y * 0.5 - 90.0, size.x, 150.0), Color(0.25, 0.0, 0.0, 0.6 * a))
+		draw_string(_font, Vector2(0, size.y * 0.5 - 20.0), "Öldün!", HORIZONTAL_ALIGNMENT_CENTER, size.x, 56, Color(1, 0.35, 0.3, a))
+		draw_string(_font, Vector2(0, size.y * 0.5 + 30.0), "Eşyaların ve XP'n silindi, statların 1'er puan düştü", HORIZONTAL_ALIGNMENT_CENTER, size.x, 24, Color(1, 1, 1, a))
 	# Envanter butonu: 3x3 ızgara simgesi
 	var ir := _inv_rect()
 	_button(ir, "")
@@ -248,6 +256,22 @@ func _draw() -> void:
 	draw_circle(base, JOY_R, Color(0, 0, 0, 0.3))
 	draw_arc(base, JOY_R, 0, TAU, 48, Color(1, 1, 1, 0.6), 3.0)
 	draw_circle(base + _joy_vec * JOY_R, 38.0, Color(1, 1, 1, 0.55))
+
+
+## Can barı: hotbar'ın sol üstünde. Yemek can doldururken açık renkli bir uç görünür.
+func _draw_health() -> void:
+	var st: PlayerStats = game.stats
+	var first := _slot_rect(0)
+	var bar := Rect2(first.position.x, first.position.y - 30.0, SLOT * 4.0, 22.0)
+	var full := float(st.max_hp())
+	var f := clampf(st.hp / full, 0.0, 1.0)
+	draw_rect(bar, Color(0, 0, 0, 0.55))
+	if st.heal_left() > 0.0:
+		var f2 := clampf((st.hp + st.heal_left()) / full, 0.0, 1.0)
+		draw_rect(Rect2(bar.position, Vector2(bar.size.x * f2, bar.size.y)), Color(1.0, 0.6, 0.6, 0.7))
+	draw_rect(Rect2(bar.position, Vector2(bar.size.x * f, bar.size.y)), Color(0.85, 0.12, 0.12))
+	draw_rect(bar, Color(1, 1, 1, 0.8), false, 2.0)
+	draw_string(_font, Vector2(bar.position.x, bar.position.y + 17.0), "%d / %d" % [ceili(st.hp), int(full)], HORIZONTAL_ALIGNMENT_CENTER, bar.size.x, 17, Color.WHITE)
 
 
 func _button(r: Rect2, text: String) -> void:

@@ -19,6 +19,11 @@ var on_ground := false
 var in_water := false
 var third_person := false
 var auto_jump := false
+## Hız statından gelen çarpan (oyun tarafından ayarlanır).
+var speed_mult := 1.0
+
+## Oyuncu yere düştüğünde, düştüğü yükseklik (blok) ile yayılır.
+signal fell(height: float)
 
 ## HUD (joystick / zıplama butonu) tarafından ayarlanır. y: ileri (+) / geri (-).
 var move_input := Vector2.ZERO
@@ -38,6 +43,8 @@ var _held_vis: MeshInstance3D
 var _held_id := -1
 var _spawned := false
 var _pos := Vector3.ZERO
+var _fall_top := -1.0e9     # havadayken ulaşılan en yüksek nokta
+var _no_fall := false       # ışınlanmadan sonraki ilk inişte düşme hasarı yok
 
 
 func _ready() -> void:
@@ -106,6 +113,14 @@ func set_held(id: int) -> void:
 	_hand.add_child(_held_vis)
 
 
+## Oyuncuyu verilen noktaya taşır (yeniden doğma); bu inişte düşme hasarı alınmaz.
+func teleport(p: Vector3) -> void:
+	position = p
+	vel = Vector3.ZERO
+	_no_fall = true
+	_spawned = false
+
+
 func add_look(dx: float, dy: float) -> void:
 	yaw = wrapf(yaw - dx, -PI, PI)
 	pitch = clampf(pitch - dy, -1.5, 1.5)
@@ -166,7 +181,7 @@ func _simulate(delta: float) -> void:
 
 	var feet := world.get_block(floori(_pos.x), floori(_pos.y + 0.4), floori(_pos.z))
 	in_water = feet == Blocks.WATER
-	var speed := SWIM_SPEED if in_water else WALK_SPEED
+	var speed := (SWIM_SPEED if in_water else WALK_SPEED) * speed_mult
 	var accel := 8.0 if in_water else (14.0 if on_ground else 6.0)
 	var k := minf(accel * delta, 1.0)
 	vel.x = lerpf(vel.x, wish.x * speed, k)
@@ -193,6 +208,14 @@ func _simulate(delta: float) -> void:
 		if was_falling:
 			on_ground = true
 		vel.y = 0.0
+	# Düşme yüksekliği: havadayken en yüksek nokta izlenir, yere inince fark bildirilir (suya düşmek zararsız).
+	if on_ground or in_water:
+		if on_ground and not in_water and not _no_fall and _fall_top - _pos.y > 0.5:
+			fell.emit(_fall_top - _pos.y)
+		_no_fall = false
+		_fall_top = _pos.y
+	else:
+		_fall_top = maxf(_fall_top, _pos.y)
 	# Önü tek blokla kapalıysa otomatik zıpla (dokunmatik kontrol kolaylığı).
 	if blocked and auto_jump and wish.length() > 0.3 and (on_ground or in_water):
 		var ahead := _pos + wish.normalized() * 0.7
@@ -204,6 +227,7 @@ func _simulate(delta: float) -> void:
 	if _pos.y < -20.0:
 		_pos = Vector3(_pos.x, World.CH + 4, _pos.z)
 		vel = Vector3.ZERO
+		_no_fall = true
 
 
 ## Verilen ayak konumunda oyuncu kutusu katı bir blokla kesişiyor mu?

@@ -60,6 +60,7 @@ func _ready() -> void:
 		" stone pick=", Items.can_harvest(Blocks.IRON_ORE, Items.tool(1, 0)))
 
 	# Envanteri doldur, blok yerleştir, ekranları görüntüle
+	game.inv.clear()   # kırılan toprak toplanmış olabilir: yuva sırası sabit kalsın
 	game.inv.add(Blocks.LOG, 5)
 	game.inv.add(Blocks.COBBLE, 20)
 	game.inv.add(Items.COAL, 7)
@@ -160,6 +161,35 @@ func _ready() -> void:
 	player.move_input = Vector2.ZERO
 	print("walked to=", player.position, " ground=", player.on_ground, " dirt picked=", game.inv.to_array().slice(0, 4), " drops=", game._drops.size())
 	await _shot("3_third_person")
+	player.toggle_view()
+
+	# Can: hasar al, et ye, sonra öl
+	game.hurt(22)
+	game.inv.set_slot(0, Items.MEAT_BEEF, 3)
+	game.select_slot(0)
+	game.place_at(c)
+	await get_tree().create_timer(1.5).timeout
+	print("hp after hurt 22 + 1.5s eating=", game.stats.hp, " meat left=", game.inv.counts[0], " heal_left=", game.stats.heal_left())
+	await _shot("6_health")
+	game.stats.add_xp(250)
+	game.stats.spend("health")
+	game.hurt(999)
+	await get_tree().create_timer(1.0).timeout
+	var items := 0
+	for i in Inventory.SIZE:
+		items += game.inv.counts[i]
+	print("after death: items=", items, " hp=", game.stats.hp, "/", game.stats.max_hp(), " level=", game.stats.level, " xp=", game.stats.xp, " points=", game.stats.points, " pos=", player.position)
+	await _shot("7_death")
+	# Düşme hasarı: 10 blok yukarıdan bırak (3 blok güvenli, sonrası blok başına 2 can)
+	await get_tree().create_timer(3.5).timeout
+	var y0 := player.position.y
+	player.position.y += 10.0
+	await get_tree().create_timer(2.5).timeout
+	print("fall 10 blocks: y ", y0, " -> ", player.position.y, " hp=", game.stats.hp, " (beklenen 16)")
+	player.jump_held = true
+	await get_tree().create_timer(1.5).timeout
+	player.jump_held = false
+	print("after jumping: hp=", game.stats.hp)
 	get_tree().quit()
 
 

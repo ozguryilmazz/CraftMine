@@ -146,6 +146,8 @@ static func item_name(id: int) -> String:
 static func icon_index(id: int) -> int:
 	if is_tool(id):
 		return 8 + (id - TOOL_BASE)
+	if DEFS.has(id):
+		return 5   # simgesi henüz çizilmemiş eşya: atlastaki boş kare
 	return id - 100
 
 

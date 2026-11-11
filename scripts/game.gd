@@ -11,6 +11,8 @@ const PICKUP_RADIUS := 1.5
 const ATTRACT_RADIUS := 2.6
 const MAX_DROPS := 150
 const MENU_SCENE := "res://scenes/main_menu.tscn"
+const SAFE_FALL := 3.0           # bu kadar bloğa kadar düşmek zararsız
+const FALL_DAMAGE := 2.0         # güvenli yüksekliğin üzerindeki her blok için can kaybı
 
 var world: World
 var player: Player
@@ -19,6 +21,9 @@ var ui: InventoryUI
 var inv := Inventory.new()
 ## Oyuncuya ait kalıcı veriler (kakacoin; ileride statlar, level, XP). Dünya kaydıyla birlikte saklanır.
 var pdata := {"coins": 0}
+var stats := PlayerStats.new()
+var hurt_flash := 0.0       # hasar alınca ekranın kızarması (HUD okur)
+var death_timer := 0.0      # > 0 iken "Öldün" yazısı gösterilir
 var selected := 0           # seçili hotbar yuvası
 var paused := false
 var info_text := ""
@@ -68,12 +73,14 @@ func _ready() -> void:
 		player.position = Session.saved_pos
 		inv.from_array(Session.saved_inv)
 		pdata.merge(Session.saved_player, true)
+		stats.from_dict(pdata.get("stats"))
 	else:
 		var a := randf() * TAU if _online else 0.0
 		var sx := int(cos(a) * 3.0)
 		var sz := int(sin(a) * 3.0)
 		player.position = Vector3(sx + 0.5, maxi(world.gen.height_at(sx, sz), WorldGen.SEA) + 2.0, sz + 0.5)
 
+	player.fell.connect(_on_fell)
 	_highlight = _make_highlight()
 	add_child(_highlight)
 	_make_crack()
@@ -203,6 +210,11 @@ func _process(delta: float) -> void:
 	_mine_requested = false
 	_mine_cooldown = maxf(_mine_cooldown - delta, 0.0)
 	player.set_held(inv.id_at(selected))
+	if not paused:
+		stats.tick(delta)
+	player.speed_mult = stats.speed_mult()
+	hurt_flash = maxf(hurt_flash - delta * 2.5, 0.0)
+	death_timer = maxf(death_timer - delta, 0.0)
 	_update_drops(delta)
 	_update_sky()
 	_update_highlight()
@@ -328,10 +340,12 @@ func place_at(p: Vector2) -> void:
 	if paused or ui.visible:
 		return
 	var hit := _target(p)
-	if hit.is_empty():
-		return
-	if Blocks.is_interactive(hit["id"]):
+	if not hit.is_empty() and Blocks.is_interactive(hit["id"]):
 		open_ui(InventoryUI.MODE_TABLE if hit["id"] == Blocks.CRAFTING_TABLE else InventoryUI.MODE_FURNACE)
+		return
+	if _use_item():
+		return
+	if hit.is_empty():
 		return
 	if hit["normal"] == Vector3i.ZERO:
 		return
@@ -349,6 +363,50 @@ func place_at(p: Vector2) -> void:
 	world.set_block(pos, block)
 	inv.take(selected, 1)
 	player.swing_once()
+
+
+## Eldeki eşya tüketilebiliyorsa (yiyecek) kullanır. Kullanıldıysa true döner.
+func _use_item() -> bool:
+	var id := inv.id_at(selected)
+	if Items.kind(id) != "food":
+		return false
+	if stats.hp < stats.max_hp():
+		stats.eat(id)
+		inv.take(selected, 1)
+		player.swing_once()
+	return true
+
+
+# ---------- Can, hasar ve ölüm ----------
+
+func _on_fell(height: float) -> void:
+	if height > SAFE_FALL:
+		hurt(floorf((height - SAFE_FALL) * FALL_DAMAGE))
+
+
+## Oyuncuya hasar verir; can biterse ölüm cezası uygulanır.
+func hurt(amount: float) -> void:
+	if amount <= 0.0 or death_timer > 0.0:
+		return
+	hurt_flash = 1.0
+	if stats.damage(amount):
+		_die()
+
+
+## Ölüm: tüm eşyalar yok olur, XP ve level sıfırlanır, her stattan 1 puan düşer, oyuncu başlangıç noktasında doğar.
+func _die() -> void:
+	ui.close()
+	hud.release_all()
+	_mine_reset()
+	inv.clear()
+	stats.die()
+	player.teleport(_spawn_point())
+	death_timer = 4.0
+	_save()
+
+
+func _spawn_point() -> Vector3:
+	return Vector3(0.5, maxi(world.gen.height_at(0, 0), WorldGen.SEA) + 2.0, 0.5)
 
 
 func select_slot(i: int) -> void:
@@ -484,6 +542,7 @@ func toggle_pause() -> void:
 
 func _save() -> void:
 	_save_timer = 0.0
+	pdata["stats"] = stats.to_dict()
 	if Session.mode != "join":
 		Session.save_world(world.export_edits(), player.position, inv.to_array(), pdata)
 
