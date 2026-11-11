@@ -19,6 +19,7 @@ var dead := false
 var half_w := 0.25
 var height := 0.75
 var ai_enabled := true
+var player: Node3D           # oyuncu (içinden geçmemek için)
 
 var _model: Node3D
 var _mats: Array = []          # [malzeme, asıl renk]
@@ -84,9 +85,47 @@ func _leg(pivot: Vector3, size: Vector3, color: Color) -> void:
 	_legs.append(n)
 
 
+## Dört ayaklı gövde: bacaklar, gövde ve baş. Baş kutusunun merkezini döndürür.
+func _quadruped(body: Vector3, leg_h: float, leg_w: float, body_col: Color, leg_col: Color, head: Vector3, head_col: Color, head_up := 0.0) -> Vector3:
+	var lx := body.x * 0.5 - leg_w * 0.5
+	var lz := body.z * 0.5 - leg_w * 0.5
+	# sıra: sol ön, sağ ön, sağ arka, sol arka (çapraz bacaklar birlikte sallanır)
+	for p: Vector2 in [Vector2(-lx, -lz), Vector2(lx, -lz), Vector2(lx, lz), Vector2(-lx, lz)]:
+		_leg(Vector3(p.x, leg_h, p.y), Vector3(leg_w, leg_h, leg_w), leg_col)
+	_box(_model, Vector3(0, leg_h + body.y * 0.5, 0), body, body_col)
+	var hc := Vector3(0, leg_h + body.y * 0.5 + head_up, -body.z * 0.5 - head.z * 0.5 + 0.06)
+	_box(_model, hc, head, head_col)
+	var eye := Color(0.05, 0.05, 0.05)
+	_box(_model, hc + Vector3(-head.x * 0.5 - 0.005, head.y * 0.15, -head.z * 0.2), Vector3(0.02, 0.07, 0.07), eye)
+	_box(_model, hc + Vector3(head.x * 0.5 + 0.005, head.y * 0.15, -head.z * 0.2), Vector3(0.02, 0.07, 0.07), eye)
+	return hc
+
+
 ## Modelin önü -Z yönüdür.
 func _build_model() -> void:
 	match type:
+		"pig":
+			var pink := Color(0.93, 0.62, 0.62)
+			var hc := _quadruped(Vector3(0.56, 0.46, 0.86), 0.3, 0.18, pink, pink.darkened(0.12), Vector3(0.44, 0.42, 0.4), pink, 0.06)
+			_box(_model, hc + Vector3(0, -0.07, -0.23), Vector3(0.22, 0.15, 0.08), pink.darkened(0.2))
+			_box(_model, hc + Vector3(-0.05, -0.07, -0.275), Vector3(0.04, 0.05, 0.01), Color(0.35, 0.15, 0.15))
+			_box(_model, hc + Vector3(0.05, -0.07, -0.275), Vector3(0.04, 0.05, 0.01), Color(0.35, 0.15, 0.15))
+		"cow":
+			var brown := Color(0.36, 0.24, 0.16)
+			var cream := Color(0.92, 0.9, 0.84)
+			var hc := _quadruped(Vector3(0.66, 0.6, 1.08), 0.6, 0.2, brown, brown.darkened(0.15), Vector3(0.44, 0.44, 0.38), brown, 0.2)
+			_box(_model, Vector3(0.15, 1.21, 0.2), Vector3(0.36, 0.02, 0.4), cream)
+			_box(_model, Vector3(-0.335, 0.95, -0.15), Vector3(0.02, 0.3, 0.36), cream)
+			_box(_model, Vector3(0.335, 0.85, 0.25), Vector3(0.02, 0.3, 0.3), cream)
+			_box(_model, hc + Vector3(0, -0.11, -0.2), Vector3(0.3, 0.2, 0.06), cream)
+			_box(_model, hc + Vector3(-0.25, 0.2, 0.05), Vector3(0.07, 0.16, 0.07), Color(0.85, 0.82, 0.75))
+			_box(_model, hc + Vector3(0.25, 0.2, 0.05), Vector3(0.07, 0.16, 0.07), Color(0.85, 0.82, 0.75))
+			_box(_model, Vector3(0, 0.62, 0.3), Vector3(0.26, 0.1, 0.26), Color(0.93, 0.68, 0.68))
+		"sheep":
+			var wool := Color(0.93, 0.93, 0.9)
+			var face := Color(0.82, 0.7, 0.58)
+			var hc := _quadruped(Vector3(0.62, 0.58, 0.92), 0.46, 0.17, wool, face.darkened(0.1), Vector3(0.36, 0.36, 0.36), face, 0.2)
+			_box(_model, hc + Vector3(0, 0.12, 0.08), Vector3(0.42, 0.3, 0.3), wool)
 		_:   # tavuk
 			var white := Color(0.95, 0.95, 0.92)
 			var yellow := Color(0.95, 0.75, 0.15)
@@ -177,6 +216,7 @@ func _process(delta: float) -> void:
 		vel.y = 0.0
 	if blocked and wish.length() > 0.1 and (on_ground or in_water):
 		vel.y = JUMP_VEL if not in_water else 3.0   # önündeki tek bloğun üstüne zıpla
+	_avoid_player()
 	if position.y < -10.0:
 		dead = true
 		queue_free()
@@ -194,6 +234,19 @@ func _process(delta: float) -> void:
 		var f := clampf(_flash / 0.25, 0.0, 1.0)
 		for m: Array in _mats:
 			m[0].albedo_color = (m[1] as Color).lerp(Color(1.0, 0.15, 0.1), f * 0.75)
+
+
+## Oyuncuyla iç içe geçmemek için mobu kenara iter.
+func _avoid_player() -> void:
+	if player == null:
+		return
+	var d := Vector3(position.x - player.position.x, 0, position.z - player.position.z)
+	var min_d := half_w + 0.38
+	if d.length() >= min_d or absf(position.y - player.position.y) > 1.8:
+		return
+	var push := (d.normalized() if d.length() > 0.01 else Vector3(1, 0, 0)) * (min_d - d.length())
+	_move(0, push.x)
+	_move(2, push.z)
 
 
 ## Yapay zeka: istenen yatay hızı döndürür.

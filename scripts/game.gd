@@ -15,7 +15,8 @@ const SAFE_FALL := 3.0           # bu kadar bloğa kadar düşmek zararsız
 const FALL_DAMAGE := 2.0         # güvenli yüksekliğin üzerindeki her blok için can kaybı
 const ATTACK_REACH := 4.5        # mobla dövüş mesafesi (blok)
 const ATTACK_COOLDOWN := 0.45    # iki vuruş arası bekleme (sn)
-const MAX_MOBS := 10
+const MAX_PASSIVE := 12          # pasif moblar: sık ve dağınık doğar
+const PASSIVE_TYPES := ["chicken", "pig", "cow", "sheep"]
 const MOB_DESPAWN := 72.0        # oyuncudan bu kadar uzaklaşan mob silinir
 
 var world: World
@@ -406,6 +407,7 @@ func _use_item() -> bool:
 func spawn_mob(type: String, pos: Vector3) -> Mob:
 	var m := Mob.new()
 	add_child(m)
+	m.player = player
 	m.setup(world, type, pos)
 	mobs.append(m)
 	return m
@@ -426,8 +428,17 @@ func _update_mobs(delta: float) -> void:
 	_spawn_timer += delta
 	if _spawn_timer >= 1.5:
 		_spawn_timer = 0.0
-		if mobs.size() < MAX_MOBS:
+		if count_mobs("passive") < MAX_PASSIVE:
 			_try_spawn()
+
+
+## Belirli sınıftaki (passive / semi / active / boss) canlı mob sayısı.
+func count_mobs(kind: String) -> int:
+	var n := 0
+	for m in mobs:
+		if is_instance_valid(m) and not m.dead and m.def["k"] == kind:
+			n += 1
+	return n
 
 
 ## Oyuncunun çevresinde, çim ya da kum üzerinde rastgele bir noktada pasif mob doğurur.
@@ -440,7 +451,7 @@ func _try_spawn() -> void:
 		return
 	var y := _surface_y(x, z)
 	if y > 0:
-		spawn_mob("chicken", Vector3(x + 0.5, y, z + 0.5))
+		spawn_mob(PASSIVE_TYPES[randi() % PASSIVE_TYPES.size()], Vector3(x + 0.5, y, z + 0.5))
 
 
 ## (x, z) sütununda üzerinde durulabilecek çim / kum yüzeyinin y değeri; uygun değilse -1.

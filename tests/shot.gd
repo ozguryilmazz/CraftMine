@@ -201,6 +201,29 @@ func _ready() -> void:
 	await get_tree().create_timer(2.0).timeout
 	print("mobs alive=", game.mobs.size(), " hen2 moved to ", hen2.position if is_instance_valid(hen2) else "freed")
 	await _shot("12_mobs")
+	# Pasif mobların modelleri: yan yana diz ve yandan bak
+	var right := Vector3(cos(player.yaw), 0, -sin(player.yaw))
+	var line: Array[Mob] = []
+	var kinds := ["chicken", "pig", "sheep", "cow"]
+	for i in kinds.size():
+		var mm: Mob = game.spawn_mob(kinds[i], player.position + fwd * 3.6 + right * (i - 1.5) * 1.5 + Vector3(0, 0.3, 0))
+		mm.ai_enabled = false
+		mm.yaw = player.yaw + 2.2
+		line.append(mm)
+	await get_tree().create_timer(1.0).timeout
+	await _shot("13_passive_models")
+	game.inv.set_slot(0, Items.SWORD_WOOD, 1)
+	var pig := line[1]
+	game._attack_cd = 0.0
+	game.attack_mob(pig)
+	game._attack_cd = 0.0
+	game.attack_mob(pig)
+	pig.ai_enabled = true
+	var d0 := pig.position.distance_to(player.position)
+	await get_tree().create_timer(2.0).timeout
+	print("pig hp=", pig.hp, " state=", pig._state, " fled from ", d0, " to ", pig.position.distance_to(player.position), " passive count=", game.count_mobs("passive"))
+	for mm in line:
+		mm.ai_enabled = true
 
 	# Karakter ekranı: XP kazan, level atla, puan dağıt
 	game.add_xp(250)
