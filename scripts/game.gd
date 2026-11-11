@@ -405,9 +405,19 @@ func place_at(p: Vector2) -> void:
 	player.swing_once()
 
 
-## Eldeki eşya tüketilebiliyorsa (yiyecek) kullanır. Kullanıldıysa true döner.
+## Eldeki eşya tüketilebiliyorsa (yiyecek, iksir) kullanır. Kullanıldıysa true döner.
 func _use_item() -> bool:
 	var id := inv.id_at(selected)
+	if Items.kind(id) == "potion":
+		# Süreli iksir: statı 5 dakikalığına artırır; aynı iksir tekrar içilirse süre yenilenir.
+		var stat := str(Items.prop(id, "stat", ""))
+		var amount := int(Items.prop(id, "amount", 0))
+		var time := float(Items.prop(id, "time", 300.0))
+		stats.add_buff(stat, amount, time)
+		inv.take(selected, 1)
+		player.swing_once()
+		toast("%s: %s +%d (%d dakika)" % [Items.item_name(id), PlayerStats.STAT_NAMES[stat], amount, roundi(time / 60.0)])
+		return true
 	if Items.kind(id) != "food":
 		return false
 	if stats.hp < stats.max_hp():
@@ -653,7 +663,17 @@ func hurt(amount: float) -> void:
 		return
 	hurt_flash = 1.0
 	if stats.damage(amount):
-		_die()
+		var totem := inv.find(Items.TOTEM)
+		if totem >= 0:
+			# Ölümsüzlük totemi: ölümü bir kez engeller, canı doldurur, ceza uygulanmaz.
+			inv.take(totem, 1)
+			stats.hp = float(stats.max_hp())
+			for m in mobs:
+				if is_instance_valid(m):
+					m.calm()
+			toast("Ölümsüzlük Totemi seni kurtardı!")
+		else:
+			_die()
 
 
 ## Ölüm: tüm eşyalar yok olur, XP ve level sıfırlanır, her stattan 1 puan düşer, oyuncu başlangıç noktasında doğar.

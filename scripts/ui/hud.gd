@@ -241,6 +241,7 @@ func _draw() -> void:
 		draw_string(_font, Vector2(0, sel.position.y - 40.0), held_name, HORIZONTAL_ALIGNMENT_CENTER, size.x, 24, white)
 	_draw_health()
 	_draw_level()
+	_draw_buffs()
 	if game.toast_timer > 0.0:
 		var ta := clampf(game.toast_timer, 0.0, 1.0)
 		draw_string(_font, Vector2(2, 112.0), game.toast_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 30, Color(0, 0, 0, 0.7 * ta))
@@ -289,6 +290,23 @@ func _draw_health() -> void:
 	draw_rect(Rect2(bar.position, Vector2(bar.size.x * f, bar.size.y)), Color(0.85, 0.12, 0.12))
 	draw_rect(bar, Color(1, 1, 1, 0.8), false, 2.0)
 	draw_string(_font, Vector2(bar.position.x, bar.position.y + 17.0), "%d / %d" % [ceili(st.hp), int(full)], HORIZONTAL_ALIGNMENT_CENTER, bar.size.x, 17, Color.WHITE)
+
+
+## Etkin iksirler: sol üstte, menü butonunun altında kalan süreleriyle listelenir.
+func _draw_buffs() -> void:
+	var st: PlayerStats = game.stats
+	var y := 104.0
+	for stat: String in PlayerStats.STATS:
+		if not st.buffs.has(stat):
+			continue
+		var left := ceili(float(st.buffs[stat][1]))
+		var text := "%s +%d   %d:%02d" % [PlayerStats.STAT_NAMES[stat], int(st.buffs[stat][0]), left / 60, left % 60]
+		var col: Color = {"attack": Color(1.0, 0.45, 0.4), "intel": Color(0.55, 0.65, 1.0), "health": Color(0.5, 0.95, 0.55), "speed": Color(1.0, 0.9, 0.4)}[stat]
+		if left <= 10 and left % 2 == 0:
+			col.a = 0.45   # bitmek üzere: yanıp söner
+		draw_rect(Rect2(14.0, y - 22.0, 250.0, 30.0), Color(0, 0, 0, 0.4))
+		draw_string(_font, Vector2(22.0, y), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, col)
+		y += 34.0
 
 
 ## XP çubuğu (hotbar'ın sağ üstünde) ve karakter butonu.

@@ -107,6 +107,14 @@ func wear(slot: int, k := 1) -> bool:
 	return false
 
 
+## Eşyanın bulunduğu ilk yuva (ana envanterde); yoksa -1.
+func find(id: int) -> int:
+	for i in SIZE:
+		if counts[i] > 0 and ids[i] == id:
+			return i
+	return -1
+
+
 ## Ekipman yuvasına (0..3) bu eşya takılabilir mi?
 static func fits_equip(eq: int, id: int) -> bool:
 	return Items.kind(id) == EQUIP_KINDS[eq]

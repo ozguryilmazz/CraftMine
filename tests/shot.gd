@@ -322,6 +322,34 @@ func _ready() -> void:
 	print("fall damage does not wear armor: helmet dur=", game.inv.dur_at(Inventory.SIZE))
 	game.stats.hp = float(game.stats.max_hp())
 
+	# İksirler ve totem
+	game.inv.clear()
+	game.inv.set_slot(0, Items.POTION_ATTACK, 2)
+	game.inv.set_slot(1, Items.POTION_DEFENSE, 1)
+	game.inv.set_slot(2, Items.POTION_SPEED, 1)
+	game.inv.set_slot(3, Items.POTION_INT, 1)
+	var dmg0: int = game.stats.hit_damage()
+	for i in 4:
+		game.select_slot(i)
+		game._use_item()
+	game.select_slot(0)
+	game._use_item()
+	await get_tree().create_timer(0.5).timeout
+	print("potions: damage ", dmg0, " -> ", game.stats.hit_damage(), " max_hp=", game.stats.max_hp(), " speed_mult=", player.speed_mult, " crit=", game.stats.crit_chance(),
+		" attack potions left=", game.inv.counts[0], " buffs=", game.stats.buffs.size(), " toast=", game.toast_text)
+	await _shot("19_potions")
+	game.stats.tick(301.0)
+	print("after 5 min: damage=", game.stats.hit_damage(), " max_hp=", game.stats.max_hp(), " buffs=", game.stats.buffs.size())
+	game.inv.set_slot(20, Items.TOTEM, 1)
+	game.inv.set_slot(5, Blocks.COBBLE, 9)
+	game.stats.add_xp(40)
+	game.hurt(999)
+	await get_tree().process_frame
+	print("totem: hp=", game.stats.hp, "/", game.stats.max_hp(), " totem left=", game.inv.find(Items.TOTEM), " cobble kept=", game.inv.counts[5], " xp kept=", game.stats.xp, " death_timer=", game.death_timer, " toast=", game.toast_text)
+	game.inv.clear()
+	game.inv.set_slot(0, Items.SWORD_WOOD, 1)
+	game.select_slot(0)
+
 	# Karakter ekranı: XP kazan, level atla, puan dağıt
 	game.add_xp(250)
 	game.open_stats()
