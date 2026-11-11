@@ -163,6 +163,45 @@ func _ready() -> void:
 	await _shot("3_third_person")
 	player.toggle_view()
 
+	# Dövüş: kılıç tarifi, tavuğa saldırı, XP
+	print("recipe wood sword: ", Recipes.find([P, 0, 0, P, 0, 0, S, 0, 0], 3).get("out"), " want ", Items.SWORD_WOOD,
+		" | diamond: ", Recipes.find([0, Items.DIAMOND, 0, 0, Items.DIAMOND, 0, 0, S, 0], 3).get("out"), " want ", Items.SWORD_DIAMOND)
+	for i in 6:
+		game.inv.set_slot(9 + i, Items.SWORD_WOOD + i, 1)
+	game.inv.set_slot(0, Items.SWORD_WOOD, 1)
+	game.select_slot(0)
+	player.pitch = -0.3
+	var fwd := Vector3(-sin(player.yaw), 0, -cos(player.yaw))
+	var hen: Mob = game.spawn_mob("chicken", player.position + fwd * 2.3 + Vector3(0, 0.3, 0))
+	hen.ai_enabled = false
+	await get_tree().create_timer(0.8).timeout
+	print("mob under crosshair=", game._mob_at(c) == hen, " hen pos=", hen.position, " mobs=", game.mobs.size())
+	var xp0: int = game.stats.xp
+	game.try_attack(c)
+	await get_tree().create_timer(0.15).timeout
+	await _shot("10_attack")
+	var swings := 1
+	while is_instance_valid(hen) and not hen.dead and swings < 40:
+		game._attack_cd = 0.0
+		game.attack_mob(hen)
+		swings += 1
+		await get_tree().process_frame
+	print("chicken dead after swings=", swings, " xp gained=", game.stats.xp - xp0, " sword left=", game.inv.id_at(0), "/", game.inv.dur_at(0))
+	game.inv.set_slot(0, Items.SWORD_DIAMOND, 1)
+	var hen2: Mob = game.spawn_mob("chicken", player.position + fwd * 2.3 + Vector3(0, 0.3, 0))
+	hen2.ai_enabled = false
+	game._attack_cd = 0.0
+	game.attack_mob(hen2)
+	print("diamond sword at level 0: hen2 hp=", hen2.hp, " toast=", game.toast_text, " dur=", game.inv.dur_at(0))
+	hen2.ai_enabled = true
+	game.open_ui(InventoryUI.MODE_INVENTORY)
+	await get_tree().create_timer(0.3).timeout
+	await _shot("11_swords")
+	game.ui.close()
+	await get_tree().create_timer(2.0).timeout
+	print("mobs alive=", game.mobs.size(), " hen2 moved to ", hen2.position if is_instance_valid(hen2) else "freed")
+	await _shot("12_mobs")
+
 	# Karakter ekranı: XP kazan, level atla, puan dağıt
 	game.add_xp(250)
 	game.open_stats()

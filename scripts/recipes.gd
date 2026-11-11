@@ -28,6 +28,7 @@ static func _init_list() -> void:
 		_add(["MMM", " S ", " S "], k, Items.tool(tier, Items.PICKAXE), 1)
 		_add(["MM", "MS", " S"], k, Items.tool(tier, Items.AXE), 1)
 		_add(["M", "S", "S"], k, Items.tool(tier, Items.SHOVEL), 1)
+		_add(["M", "M", "S"], k, Items.SWORD_WOOD + tier, 1)   # nether kılıç üretilemez, yalnızca ganimet
 
 
 ## n x n ızgaradaki (satır satır) eşyalara uyan tarifi bulur. Yoksa boş sözlük.

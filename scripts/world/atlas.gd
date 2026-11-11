@@ -7,7 +7,9 @@ const GRID := 8
 const TILE_COUNT := 21
 const ITEM_TILE := 32
 const ITEM_COLS := 8
-const ITEM_ROWS := 4
+const ITEM_ROWS := 10
+## RPG eşyalarının simgeleri bu sıradan başlar (eşya kimliği 130 -> simge 32).
+const RPG_ICON_BASE := 32
 
 const TIER_COLORS := [
 	Color(0.62, 0.46, 0.26),   # tahta
@@ -15,6 +17,7 @@ const TIER_COLORS := [
 	Color(0.86, 0.86, 0.9),    # demir
 	Color(0.98, 0.84, 0.25),   # altın
 	Color(0.35, 0.9, 0.9),     # elmas
+	Color(0.5, 0.2, 0.62),     # nether
 ]
 
 static var _tex: ImageTexture
@@ -251,7 +254,7 @@ static func _build_items() -> Image:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 99
 	for icon in ITEM_COLS * ITEM_ROWS:
-		if icon > 4 and (icon < 8 or icon >= 23):
+		if icon > 4 and (icon < 8 or icon >= 23) and (icon < RPG_ICON_BASE or icon >= RPG_ICON_BASE + 6):
 			continue
 		var tile := Image.create(ITEM_TILE, ITEM_TILE, false, Image.FORMAT_RGBA8)
 		for py in ITEM_TILE:
@@ -295,6 +298,18 @@ static func _item_pixel(icon: int, fx: float, fy: float) -> Color:
 	var dy := fy - 27.0
 	var u := (dx - dy) * 0.7071
 	var v := (-dx - dy) * 0.7071
+	if icon >= RPG_ICON_BASE and icon < RPG_ICON_BASE + 6:
+		# Kılıç: ahşap kabza, koyu siperlik, kademeye göre renkli ve ucu sivrilen namlu
+		var blade: Color = TIER_COLORS[icon - RPG_ICON_BASE]
+		if u > 1.0 and u <= 7.5 and absf(v) < 1.8:
+			return _lit(wood, v / 1.8)
+		if u > 7.5 and u <= 10.0 and absf(v) < 5.6:
+			return _lit(blade.darkened(0.45), v / 5.6)
+		if u > 10.0 and u < 31.0:
+			var hw := 2.9 * minf(1.0, (31.0 - u) / 4.5)
+			if absf(v) < hw:
+				return _lit(blade, 0.9 if absf(v) < 0.7 else v / hw * 0.8)
+		return none
 	match icon:
 		0:   # çubuk
 			if u > 1.5 and u < 30.0 and absf(v) < 1.9:

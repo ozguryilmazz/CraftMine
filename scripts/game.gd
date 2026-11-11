@@ -13,6 +13,10 @@ const MAX_DROPS := 150
 const MENU_SCENE := "res://scenes/main_menu.tscn"
 const SAFE_FALL := 3.0           # bu kadar bloğa kadar düşmek zararsız
 const FALL_DAMAGE := 2.0         # güvenli yüksekliğin üzerindeki her blok için can kaybı
+const ATTACK_REACH := 4.5        # mobla dövüş mesafesi (blok)
+const ATTACK_COOLDOWN := 0.45    # iki vuruş arası bekleme (sn)
+const MAX_MOBS := 10
+const MOB_DESPAWN := 72.0        # oyuncudan bu kadar uzaklaşan mob silinir
 
 var world: World
 var player: Player
@@ -52,6 +56,9 @@ var _mine_progress := 0.0
 var _mine_cooldown := 0.0
 var _mine_requested := false
 var _drops: Array[ItemDrop] = []
+var mobs: Array[Mob] = []
+var _attack_cd := 0.0
+var _spawn_timer := 0.0
 
 
 func _ready() -> void:
@@ -223,6 +230,8 @@ func _process(delta: float) -> void:
 	hurt_flash = maxf(hurt_flash - delta * 2.5, 0.0)
 	death_timer = maxf(death_timer - delta, 0.0)
 	toast_timer = maxf(toast_timer - delta, 0.0)
+	_attack_cd = maxf(_attack_cd - delta, 0.0)
+	_update_mobs(delta)
 	_update_drops(delta)
 	_update_sky()
 	_update_highlight()
@@ -298,7 +307,12 @@ func _target(p: Vector2) -> Dictionary:
 ## Basılı tutulduğu sürece her karede çağrılır: hedef bloğu sertliğine göre kademeli olarak kırar.
 func mine_at(p: Vector2, delta: float) -> void:
 	_mine_requested = true
-	if _mine_cooldown > 0.0 or paused or menu_open():
+	if paused or menu_open():
+		return
+	if try_attack(p):   # parmağın altında mob varsa kırmak yerine saldır
+		_mine_reset()
+		return
+	if _mine_cooldown > 0.0:
 		return
 	var hit := _target(p)
 	if hit.is_empty():
@@ -347,6 +361,8 @@ func _break(pos: Vector3i, block: int) -> void:
 func place_at(p: Vector2) -> void:
 	if paused or menu_open():
 		return
+	if try_attack(p):
+		return
 	var hit := _target(p)
 	if not hit.is_empty() and Blocks.is_interactive(hit["id"]):
 		open_ui(InventoryUI.MODE_TABLE if hit["id"] == Blocks.CRAFTING_TABLE else InventoryUI.MODE_FURNACE)
@@ -383,6 +399,130 @@ func _use_item() -> bool:
 		inv.take(selected, 1)
 		player.swing_once()
 	return true
+
+
+# ---------- Moblar ve dövüş ----------
+
+func spawn_mob(type: String, pos: Vector3) -> Mob:
+	var m := Mob.new()
+	add_child(m)
+	m.setup(world, type, pos)
+	mobs.append(m)
+	return m
+
+
+func _update_mobs(delta: float) -> void:
+	var i := mobs.size() - 1
+	while i >= 0:
+		var m := mobs[i]
+		if not is_instance_valid(m) or m.dead:
+			mobs.remove_at(i)
+		elif m.position.distance_to(player.position) > MOB_DESPAWN:
+			m.queue_free()
+			mobs.remove_at(i)
+		i -= 1
+	if paused:
+		return
+	_spawn_timer += delta
+	if _spawn_timer >= 1.5:
+		_spawn_timer = 0.0
+		if mobs.size() < MAX_MOBS:
+			_try_spawn()
+
+
+## Oyuncunun çevresinde, çim ya da kum üzerinde rastgele bir noktada pasif mob doğurur.
+func _try_spawn() -> void:
+	var a := randf() * TAU
+	var r := randf_range(14.0, 30.0)
+	var x := floori(player.position.x + cos(a) * r)
+	var z := floori(player.position.z + sin(a) * r)
+	if not world.is_ready_at(Vector3(x, 0, z)):
+		return
+	var y := _surface_y(x, z)
+	if y > 0:
+		spawn_mob("chicken", Vector3(x + 0.5, y, z + 0.5))
+
+
+## (x, z) sütununda üzerinde durulabilecek çim / kum yüzeyinin y değeri; uygun değilse -1.
+func _surface_y(x: int, z: int) -> int:
+	var top := mini(world.gen.height_at(x, z) + 3, World.CH - 3)
+	for y in range(top, maxi(top - 6, 1), -1):
+		var b := world.get_block(x, y, z)
+		if b == Blocks.AIR:
+			continue
+		if (b == Blocks.GRASS or b == Blocks.SAND) and world.get_block(x, y + 1, z) == Blocks.AIR \
+				and world.get_block(x, y + 2, z) == Blocks.AIR:
+			return y + 1
+		return -1
+	return -1
+
+
+## Ekran noktasının altındaki (bloklardan önce gelen) en yakın mob.
+func _mob_at(p: Vector2) -> Mob:
+	if mobs.is_empty():
+		return null
+	var ray := screen_ray(p)
+	var limit := ATTACK_REACH + (4.0 if player.third_person else 0.0)
+	var hit := world.raycast(ray[0], ray[1], limit)
+	if not hit.is_empty():
+		limit = minf(limit, float(hit["dist"]))
+	var best: Mob = null
+	for m in mobs:
+		if is_instance_valid(m) and not m.dead:
+			var t := m.ray_hit(ray[0], ray[1])
+			if t >= 0.0 and t < limit:
+				limit = t
+				best = m
+	return best
+
+
+## Ekran noktasında mob varsa ona saldırır. Mob hedeflendiyse (bekleme süresinde olsa bile) true döner.
+func try_attack(p: Vector2) -> bool:
+	var m := _mob_at(p)
+	if m == null:
+		return false
+	if _attack_cd <= 0.0:
+		attack_mob(m)
+	return true
+
+
+## Tek vuruş: sekme / kritik zarı, kılıç bonusu ve yıpranması, XP ödülü.
+func attack_mob(m: Mob) -> void:
+	_attack_cd = ATTACK_COOLDOWN
+	player.swing_once()
+	var held := inv.id_at(selected)
+	var weapon := 0
+	if Items.kind(held) == "sword":
+		var need := int(Items.prop(held, "lvl", 0))
+		if stats.level >= need:
+			weapon = int(Items.prop(held, "dmg", 0))
+		else:
+			toast("%s için level %d gerekli" % [Items.item_name(held), need])
+	var r := stats.roll_attack(weapon)
+	var at := m.position + Vector3(0, m.height + 0.8, 0)
+	if r["miss"]:
+		float_text("Sekti", Color(0.8, 0.8, 0.8), at)
+	else:
+		var died := m.hurt(float(r["dmg"]), player.position)
+		if r["crit"]:
+			float_text("Kritik -%d" % r["dmg"], Color(1.0, 0.85, 0.2), at)
+		else:
+			float_text("-%d" % r["dmg"], Color(1.0, 0.35, 0.3), at)
+		if died:
+			var xp := int(m.def["xp"])
+			float_text("+%d XP" % xp, Color(0.45, 1.0, 0.4), at + Vector3(0, 0.45, 0))
+			add_xp(xp)
+			mobs.erase(m)
+			m.queue_free()
+	if weapon > 0 and inv.wear(selected):
+		toast("%s kırıldı" % Items.item_name(held))
+
+
+## Dünyada yükselip kaybolan yazı (hasar, XP).
+func float_text(text: String, color: Color, pos: Vector3) -> void:
+	var f := FloatText.new()
+	add_child(f)
+	f.setup(text, color, pos)
 
 
 # ---------- Can, hasar ve ölüm ----------

@@ -147,8 +147,14 @@ static func icon_index(id: int) -> int:
 	if is_tool(id):
 		return 8 + (id - TOOL_BASE)
 	if DEFS.has(id):
-		return 5   # simgesi henüz çizilmemiş eşya: atlastaki boş kare
+		# simgesi henüz çizilmemiş eşyalar atlastaki boş kareyi kullanır
+		return Atlas.RPG_ICON_BASE + (id - SWORD_WOOD) if has_icon(id) else 5
 	return id - 100
+
+
+## Simgesi çizilmiş RPG eşyası mı? (şimdilik kılıçlar)
+static func has_icon(id: int) -> bool:
+	return id >= SWORD_WOOD and id <= SWORD_NETHER
 
 
 ## Bir eşyanın simgesini verilen dikdörtgene çizer (HUD ve envanter ekranı).
@@ -176,7 +182,7 @@ static func draw_icon(ci: CanvasItem, r: Rect2, id: int) -> void:
 		_face(ci, tex, ts, [lt, top, rt, mid], Blocks.TILES[id][0], 1.0)
 		_face(ci, tex, ts, [lt, mid, bot, lb], Blocks.TILES[id][1], 0.78)
 		_face(ci, tex, ts, [mid, rt, rb, bot], Blocks.TILES[id][1], 0.58)
-	elif DEFS.has(id):
+	elif DEFS.has(id) and not has_icon(id):
 		# Simgesi henüz çizilmemiş eşya: türüne göre renkli geçici kare
 		var cols := {"sword": Color(0.75, 0.78, 0.85), "food": Color(0.8, 0.45, 0.3), "potion": Color(0.6, 0.35, 0.8)}
 		var col: Color = cols.get(kind(id), Color(0.5, 0.65, 0.55))

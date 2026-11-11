@@ -69,6 +69,17 @@ func crit_bonus() -> int:
 	return ceili((int(BASE["attack"]) + total("attack")) * CRIT_DMG_PER_POINT * total("intel"))
 
 
+## Bir vuruşun sonucunu zarla belirler: {"miss": sekti mi, "crit": kritik mi, "dmg": hasar}.
+func roll_attack(weapon_dmg := 0) -> Dictionary:
+	if randf() < miss_chance():
+		return {"miss": true, "crit": false, "dmg": 0}
+	var dmg := hit_damage(weapon_dmg)
+	var crit := randf() < crit_chance()
+	if crit:
+		dmg += crit_bonus()
+	return {"miss": false, "crit": crit, "dmg": dmg}
+
+
 func heal_left() -> float:
 	return _heal_left
 
