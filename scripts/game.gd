@@ -25,7 +25,10 @@ const MAX_SEMI := 10
 const MAX_ACTIVE := 8
 const SEMI_INTERVAL := 10.0      # grup doğma denemeleri arası süre (sn): "dengeli"
 const ACTIVE_INTERVAL := 16.0    # "dengeliden az"
-const SAFE_RADIUS := 48.0        # başlangıç noktasının çevresinde aktif mob doğmaz
+const SAFE_RADIUS := 48.0        # başlangıç noktasının çevresinde aktif mob ve boss doğmaz
+const BOSS_TYPES := ["golem", "giant_spider"]
+const BOSS_INTERVAL := 45.0      # boss doğma denemeleri arası süre (sn)
+const BOSS_CHANCE := 0.3         # her denemede doğma ihtimali: nadir
 const CHEST_PICKUP := 1.6        # ganimet sandığını toplama mesafesi
 const MOB_DESPAWN := 72.0        # oyuncudan bu kadar uzaklaşan mob silinir
 
@@ -71,6 +74,7 @@ var mobs: Array[Mob] = []
 var _attack_cd := 0.0
 var _spawn_timer := 0.0
 var _semi_timer := 0.0
+var _boss_timer := 0.0
 var chests: Array[LootChest] = []
 var _active_timer := 0.0
 
@@ -466,6 +470,20 @@ func _update_mobs(delta: float) -> void:
 		_active_timer = 0.0
 		if count_mobs("active") + ACTIVE_GROUP <= MAX_ACTIVE:
 			_try_spawn_group(ACTIVE_TYPES[randi() % ACTIVE_TYPES.size()], ACTIVE_GROUP, true)
+	_boss_timer += delta
+	if _boss_timer >= BOSS_INTERVAL:
+		_boss_timer = 0.0
+		if count_mobs("boss") == 0 and randf() < BOSS_CHANCE:   # boss tek doğar, aynı anda en fazla bir tane
+			_try_spawn_group(BOSS_TYPES[randi() % BOSS_TYPES.size()], 1, true)
+
+
+## Ekranın üstünde can çubuğu gösterilecek boss: dövüşe girmiş ve yakındaki boss (yoksa null).
+func boss_shown() -> Mob:
+	for m in mobs:
+		if is_instance_valid(m) and not m.dead and m.def["k"] == "boss" and (m.aggro or m.hp < m.max_hp) \
+				and m.position.distance_to(player.position) < 40.0:
+			return m
+	return null
 
 
 ## Oyuncudan uzakta bir noktada (spot) aynı türden bir grup doğurur.

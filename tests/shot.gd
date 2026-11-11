@@ -266,6 +266,37 @@ func _ready() -> void:
 	game.stats.hp = 30.0
 	await get_tree().process_frame
 
+	# Boss'lar: model, vurulmadan saldırmama, can çubuğu, XP
+	var golem: Mob = game.spawn_mob("golem", player.position + fwd * 6.0 + right * -2.2 + Vector3(0, 0.3, 0))
+	var spider: Mob = game.spawn_mob("giant_spider", player.position + fwd * 6.0 + right * 2.2 + Vector3(0, 0.3, 0))
+	golem.ai_enabled = false
+	spider.ai_enabled = false
+	golem.yaw = player.yaw + 2.7
+	spider.yaw = player.yaw + 2.5
+	player.pitch = -0.05
+	await get_tree().create_timer(1.0).timeout
+	print("boss untouched: golem aggro=", golem.aggro, " shown=", game.boss_shown() != null, " count=", game.count_mobs("boss"))
+	game.inv.set_slot(0, Items.SWORD_WOOD, 1)
+	game.select_slot(0)
+	for i in 6:
+		game._attack_cd = 0.0
+		game.attack_mob(spider)
+	await get_tree().create_timer(0.2).timeout
+	print("spider hit: aggro=", spider.aggro, " hp=", spider.hp, "/", spider.max_hp, " shown=", game.boss_shown() == spider)
+	await _shot("20_bosses")
+	var lvl0: int = game.stats.level
+	spider.hp = 1.0
+	while is_instance_valid(spider) and not spider.dead:
+		game._attack_cd = 0.0
+		game.inv.set_slot(0, Items.SWORD_WOOD, 1)
+		game.attack_mob(spider)
+	await get_tree().process_frame
+	print("spider killed: level ", lvl0, " -> ", game.stats.level, " xp=", game.stats.xp, " chests=", game.chests.size(), " shown=", game.boss_shown() != null)
+	golem.queue_free()
+	for ch in game.chests:
+		ch.queue_free()
+	await get_tree().process_frame
+
 	# Ganimet sandığı: içerik, toplama, süre dolunca yok olma, simgeler
 	var chest: LootChest = game.spawn_chest(player.position + fwd * 2.5 + Vector3(0, 1.0, 0),
 		[[Items.MEAT_CHICKEN, 1, -1], [Items.STICK, 2, -1], [Items.SHIELD_WOOD, 1, 5]])

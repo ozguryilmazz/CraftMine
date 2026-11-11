@@ -31,6 +31,7 @@ var aggro := false           # oyuncuyu kovalıyor mu?
 var hover := 0.0
 var _atk_cd := 0.0
 var _lunge := 0.0
+var _leg_axis := 0           # bacakların sallandığı eksen (0: x, 1: y - yana açılan örümcek bacakları)
 
 var _model: Node3D
 var _mats: Array = []          # [malzeme, asıl renk]
@@ -141,6 +142,34 @@ func _face(y: float, z: float, eye: Color, half := 0.1) -> void:
 ## Modelin önü -Z yönüdür.
 func _build_model() -> void:
 	match type:
+		"golem":
+			var stone := Color(0.78, 0.76, 0.72)
+			_humanoid(stone, stone.darkened(0.08), stone.darkened(0.2), 1.35)
+			_face(1.72, -0.225, Color(0.8, 0.1, 0.08))
+			_box(_model, Vector3(0, 1.6, -0.25), Vector3(0.12, 0.26, 0.1), stone.darkened(0.25))
+			_box(_model, Vector3(0.12, 1.2, -0.185), Vector3(0.2, 0.36, 0.02), Color(0.3, 0.55, 0.25))
+			_box(_model, Vector3(-0.2, 0.95, -0.185), Vector3(0.12, 0.22, 0.02), Color(0.3, 0.55, 0.25))
+			_model.scale = Vector3.ONE * 1.42
+		"giant_spider":
+			var dark := Color(0.2, 0.17, 0.16)
+			_leg_axis = 1
+			_box(_model, Vector3(0, 0.72, 0.5), Vector3(1.3, 0.8, 1.3), dark)
+			_box(_model, Vector3(0, 0.62, -0.5), Vector3(0.8, 0.56, 0.74), dark.lightened(0.08))
+			_box(_model, Vector3(0, 1.13, 0.5), Vector3(0.5, 0.03, 0.7), Color(0.6, 0.1, 0.1))
+			for ex: float in [-0.26, -0.09, 0.09, 0.26]:
+				_box(_model, Vector3(ex, 0.72, -0.875), Vector3(0.1, 0.1, 0.02), Color(0.9, 0.1, 0.1))
+			_box(_model, Vector3(-0.15, 0.4, -0.9), Vector3(0.08, 0.2, 0.08), Color(0.85, 0.85, 0.8))
+			_box(_model, Vector3(0.15, 0.4, -0.9), Vector3(0.08, 0.2, 0.08), Color(0.85, 0.85, 0.8))
+			for side: float in [-1.0, 1.0]:
+				for li in 4:
+					var n := Node3D.new()
+					n.position = Vector3(side * 0.4, 0.62, -0.62 + li * 0.36)
+					_model.add_child(n)
+					var seg := Node3D.new()
+					seg.rotation.z = side * -0.55
+					n.add_child(seg)
+					_box(seg, Vector3(side * 0.62, 0, 0), Vector3(1.2, 0.11, 0.11), dark.lightened(0.05))
+					_legs.append(n)
 		"wolf":
 			var grey := Color(0.72, 0.72, 0.74)
 			var hc := _quadruped(Vector3(0.36, 0.36, 0.8), 0.4, 0.12, grey, grey.darkened(0.15), Vector3(0.34, 0.32, 0.3), grey, 0.1)
@@ -332,7 +361,9 @@ func _process(delta: float) -> void:
 	_phase += delta * (6.0 + speed * 4.0)
 	var swing := sin(_phase) * 0.7 * clampf(speed / 1.2, 0.0, 1.0)
 	for i in _legs.size():
-		_legs[i].rotation.x = swing if i % 2 == 0 else -swing
+		var rot := _legs[i].rotation
+		rot[_leg_axis] = (swing if i % 2 == 0 else -swing) * (0.5 if _leg_axis == 1 else 1.0)
+		_legs[i].rotation = rot
 	_lunge = maxf(_lunge - delta, 0.0)
 	_model.position = Vector3(0, hover + (sin(_phase * 0.6) * 0.08 if hover > 0.0 else 0.0), -sin(_lunge / 0.25 * PI) * 0.35)
 	if _flash > 0.0:

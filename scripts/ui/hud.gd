@@ -242,6 +242,13 @@ func _draw() -> void:
 	_draw_health()
 	_draw_level()
 	_draw_buffs()
+	var boss: Mob = game.boss_shown()
+	if boss != null:
+		var bb := Rect2(size.x * 0.5 - 260.0, 146.0, 520.0, 30.0)
+		draw_rect(bb, Color(0, 0, 0, 0.6))
+		draw_rect(Rect2(bb.position, Vector2(bb.size.x * clampf(boss.hp / boss.max_hp, 0.0, 1.0), bb.size.y)), Color(0.6, 0.1, 0.55))
+		draw_rect(bb, Color(1, 1, 1, 0.85), false, 2.0)
+		draw_string(_font, Vector2(bb.position.x, bb.position.y + 23.0), "%s   %d / %d" % [boss.def["n"], ceili(boss.hp), boss.max_hp], HORIZONTAL_ALIGNMENT_CENTER, bb.size.x, 22, Color.WHITE)
 	if game.toast_timer > 0.0:
 		var ta := clampf(game.toast_timer, 0.0, 1.0)
 		draw_string(_font, Vector2(2, 112.0), game.toast_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 30, Color(0, 0, 0, 0.7 * ta))

@@ -3,7 +3,6 @@ class_name MobDB
 ##   n: ad    k: sınıf (passive / semi / active / boss)    hp, atk, xp
 ##   size: (genişlik, yükseklik) çarpışma kutusu          speed: yürüme hızı (blok/sn)
 ##   hover: yerden yükseklik (uçan görünümlü moblar)
-## Boss modelleri henüz yok; sonraki aşamada eklenecek.
 
 ## Aktif mobların oyuncuyu fark ettiği yarıçap (blok).
 const AGGRO_RADIUS := 10.0
