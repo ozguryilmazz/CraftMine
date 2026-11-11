@@ -8,7 +8,8 @@ Kullanıcı Türkçe konuşur; yanıtlar Türkçe yazılır. Commit ve push işl
 
 - **Sürüm:** 1.13.1 (version_code 18). Son commit konusu: envanter ekranını kapatan dokunuşun HUD'daki görünüm butonunu tetiklemesi düzeltildi.
 - **Tamamlanan aşamalar:** 1–10 (aşağıdaki tabloya bakın) ve ilk telefon geri bildirimi düzeltmeleri.
-- **Sıradaki iş:** Kullanıcının v1.13.1'i telefonda denemesi bekleniyor. Ardından Aşama 11 (çok oyunculu eşitleme).
+- **Sıradaki iş:** Grafik yol haritası, **G0'dan başlayarak** (aşağıda "Grafik yol haritası" bölümü). Kullanıcı 11 Kasım 2026'da önceliği grafiklere verdi ve yeni bir oturumda devam edeceğini söyledi. Aşama 11 (çok oyunculu) grafiklerden sonraya kaldı.
+- **Yeni oturumda ilk adım:** G0'ı kodlamaya başlamak; kullanıcıya yeniden soru sormaya gerek yok, kararlar aşağıda kayıtlı.
 - **Gerçek cihazda doğrulanmayanlar:** v1.12.1 düzeltmeleri, v1.13.0 envanter ekranı (dokunma, sürükle-bırak, sekmeler), boss'ların kendiliğinden doğması, çok oyunculu kodun tamamı, oyun içi güncelleme kontrolü.
 
 ## Proje
@@ -117,9 +118,42 @@ Kaynaklar kullanıcının `Downloads` klasöründeki `mns2026.xlsx` ve `Yeni Met
 | 1.13.0 | Envanter ekranı yeniden düzenlendi: tam ekran, kabartmalı iki panel, sekmeler, tarif listesinden hızlı üretim (malzemesi eksik tarifler kırmızı) |
 | 1.12.1 | Telefon geri bildirimi: sudan çıkış, suyun dolması, dokunarak açılan sandık, kılıç üretiminde level sınırı, eldeki kılıcın hasar göstergesi |
 
+## Grafik yol haritası (kullanıcı onayladı, 11 Kasım 2026)
+
+Hedef: klasik voxel görünümü korunur; ışık, gölge, doku ve atmosfer kalitesi yükseltilir. Mimari değişmez, aşama aşama ilerlenir. Her aşama: kod → PC testi → yeni sürüm → kullanıcı telefonda dener → sonraki aşama. Hiçbir aşama henüz başlamadı.
+
+**Kullanıcının kararları**
+- Dokular **16×16 pikselde kalır**; ayrıntı ve varyasyon artırılır (32 piksele geçilmez).
+- Sallanan çim için **yeni bir uzun çim bitkisi bloğu** eklenir: dekoratif, içinden geçilir, **kırılabilir ama bir şey düşürmez**.
+- Gerçek zamanlı gölge **ayarlarda "yüksek kalite" seçeneğiyle** açılır; telefonda yavaşlatıyorsa varsayılan kapalı kalır.
+- Öncelik grafiklerde; çok oyunculu eşitleme sonra.
+- Test cihazı **Samsung Galaxy A34**; kalite ayarlarının varsayılanı buna göre seçilir.
+- "Blok dokularına dokunma" kısıtı bu yol haritasıyla **kalktı** (G4 ve G5 için).
+
+**Aşamalar**
+
+| Aşama | İçerik | Dokunulacak yerler / notlar |
+|---|---|---|
+| G0 | FPS sayacı ve grafik kalitesi ayarı (düşük / orta / yüksek) | Ayar `Session` içinde saklanır (`user://settings.cfg`), duraklatma ya da ana menüden değiştirilir. Sonraki aşamalar bu ayara bakar. Telefonda FPS bilinmiyor; ölçüm buradan başlar. |
+| G1 | Köşe gölgesi (ambient occlusion) | `ChunkMesher`: köşe başına AO, mesh renklerine işlenir (GL Compatibility'de SSAO yok). Şu an yüz parlaklıkları `sh := [0.8, 0.8, 1.0, 0.5, 0.65, 0.65]`. Mesher yalnızca 4 yan komşuyu alıyor; chunk köşeleri için çapraz komşular da gerekir. Dörtgenin köşegeni AO'ya göre çevrilmeli. |
+| G2 | Gündüz-gece ve atmosfer | `game.gd` `_update_sky`: güneş şu an sabit açıda, yalnızca parlaklığı değişiyor. Güneş hareket etmeli; gün doğumu/batımı renkleri, sis rengi, gecenin fazla karanlık olması burada düzelir. Saat cihaz saatinden türetilir (tüm oyuncularda aynı), bu korunmalı. |
+| G3 | Güneş gölgeleri | `DirectionalLight3D` gölgesi, yalnızca "yüksek" ayarda. Çözünürlük ve mesafe mobil için sınırlanır. Blok malzemesi hem güneşten ışık alıyor hem sabit yüz parlaklığı kullanıyor; gölge açıkken ikisi üst üste biner, yüz parlaklıkları yeniden dengelenmeli. |
+| G4 | Blok dokuları (16 px) | `Atlas._pixel`: çim (doğal tonlar), toprak (küçük taşlar), taş (yüzey varyasyonu), kütük (kabuk ve halkalar), yaprak (dolgun), cevherler (belirgin mineral). |
+| G5 | Doku varyasyonları | Atlas 8×8 = 64 hücre, 21'i dolu; varyasyonlara yer var. `ChunkMesher` konumdan türetilen sabit bir karma ile varyant seçer (tüm oyuncularda aynı görünmeli). |
+| G6 | Kırma parçacıkları | Blok kırılırken kırıntılar (bloğun dokusundan renk), cevher kırılınca parıltı. Uzakta azaltılır / kapatılır. |
+| G7 | Meşale ateşi | Alev animasyonu ve ışık titremesi. Meşale ışıkları `world.gd` içinde (satır 179 civarı `light_color`). |
+| G8 | Yaprak ve çim sallanması | Yapraklar için köşe animasyonu (blok malzemesi `StandardMaterial3D`; shader gerekebilir) ve yeni uzun çim bitkisi bloğu. Yalnızca yakın chunk'larda. Yeni blok kimliği Firebase kurallarındaki sınırın (`<= 63`) içinde kalmalı. |
+| G9 | Mob animasyonları | Baş, kuyruk, saldırı ve ölüm hareketleri (`scripts/mobs/mob.gd`). |
+
+**Dikkat edilecekler**
+- Performans ölçümü yalnızca telefonda anlamlıdır; PC'deki testler görünümü doğrular, hızı değil.
+- Atlas ve mesh üretimi başlangıçta ve chunk yüklenirken çalışır; G1 ve G5 mesh kurma süresini artırır, chunk yükleme takılmasına bakılmalı.
+- Düşük ayarda G3, G6, G8 kapalı olmalı; orta ve yüksek ayarın neyi açacağı G0'da belirlenir.
+
 ## Kalan işler
 
-1. **Aşama 11 — çok oyunculu eşitleme:** moblar, hasar, sandıklar. Firebase kurallarına yeni alanlar gerekecek. Bu PC'de test edilemez; iki telefonla kullanıcı dener.
+0. **Grafik yol haritası G0–G9** (yukarıda; sıradaki iş).
+1. **Aşama 11 — çok oyunculu eşitleme** (grafiklerden sonra): moblar, hasar, sandıklar. Firebase kurallarına yeni alanlar gerekecek. Bu PC'de test edilemez; iki telefonla kullanıcı dener.
 2. **Aşama 12 — dükkan:** kakacoin ile alış/satış, çok çeşitli yeni eşyalar (kullanıcı "ileride" dedi).
 3. **Kullanıcının yapması gereken:** `firebase/database.rules.json` dosyasını Firebase Console'da yeniden yayınlamak (blok değeri sınırı `<= 63`; yayındaki sürümde hâlâ `<= 10`).
 
@@ -133,5 +167,5 @@ Kaynaklar kullanıcının `Downloads` klasöründeki `mns2026.xlsx` ve `Yeni Met
 
 ## Dokunulmaması istenenler
 
-- **Blok dokuları:** kullanıcı "önce deneyeyim" dedi; istemeden değiştirilmez.
+- **Blok dokuları:** grafik yol haritası (G4, G5) kapsamında değiştirilebilir; çözünürlük 16 pikselde kalır.
 - Tablodaki sayılar (can, hasar, XP, dayanıklılık) kullanıcıya sorulmadan değiştirilmez; denge ayarı kullanıcı telefonda denedikten sonra yapılır.
