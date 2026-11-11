@@ -254,7 +254,7 @@ static func _build_items() -> Image:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 99
 	for icon in ITEM_COLS * ITEM_ROWS:
-		if icon > 4 and (icon < 8 or icon >= 23) and (icon < RPG_ICON_BASE or icon >= RPG_ICON_BASE + 6):
+		if icon > 4 and (icon < 8 or icon >= 23) and not Items.DEFS.has(Items.SWORD_WOOD + icon - RPG_ICON_BASE):
 			continue
 		var tile := Image.create(ITEM_TILE, ITEM_TILE, false, Image.FORMAT_RGBA8)
 		for py in ITEM_TILE:
@@ -284,6 +284,122 @@ static func _edge(t: Image, x: int, y: int) -> bool:
 	return false
 
 
+## Zırh, kalkan, yiyecek, iksir, totem ve taç simgeleri. (u, v): sol alttan sağ üste uzanan eksen.
+static func _rpg_pixel(id: int, fx: float, fy: float, u: float, v: float) -> Color:
+	var none := Color(0, 0, 0, 0)
+	var iron := Color(0.74, 0.76, 0.82)
+	var gold := Color(0.98, 0.82, 0.22)
+	var dx := fx - 16.0
+	var light := (-dx - (fy - 16.0)) / 16.0
+	match id:
+		Items.HELMET:
+			var inside := false
+			if fy < 17.0:
+				inside = Vector2(dx, fy - 17.0).length() < 10.5
+			elif fy < 23.0:
+				inside = absf(dx) < 10.5 and not (absf(dx) < 5.5 and fy > 19.0)
+			if not inside:
+				return none
+			if absf(dx) < 1.3 and fy < 19.0:
+				return _lit(iron, 0.9)
+			return _lit(iron, light * 1.2)
+		Items.CHESTPLATE:
+			if Vector2(dx, fy - 6.0).length() < 4.5:
+				return none
+			if (fy >= 6.0 and fy < 13.0 and absf(dx) < 12.5) or (fy >= 13.0 and fy < 27.0 and absf(dx) < 7.5):
+				if fy >= 13.0 and int(fy) % 5 == 0:
+					return _lit(iron, -0.5)
+				return _lit(iron, light * 1.3)
+			return none
+		Items.LEGGINGS:
+			if fy >= 4.0 and fy < 10.0 and absf(dx) < 8.5:
+				return _lit(iron, light + 0.2)
+			if fy >= 10.0 and fy < 23.0 and absf(dx) > 1.5 and absf(dx) < 8.5:
+				return _lit(iron, light)
+			if fy >= 23.0 and fy < 28.0 and absf(dx) > 1.5 and dx > -8.5 - (2.0 if dx < 0.0 else 0.0) and dx < 8.5 + (2.0 if dx > 0.0 else 0.0):
+				return _lit(Color(0.45, 0.3, 0.18), light)
+			return none
+		Items.SHIELD_WOOD, Items.SHIELD_IRON, Items.SHIELD_DIAMOND:
+			var c: Color = [Color(0.62, 0.46, 0.26), iron, TIER_COLORS[4]][id - Items.SHIELD_WOOD]
+			if fy < 4.5 or fy > 28.5:
+				return none
+			var hw := 9.5 if fy < 17.0 else 9.5 * (1.0 - (fy - 17.0) / 11.5)
+			if absf(dx) >= hw:
+				return none
+			if hw - absf(dx) < 1.8 or fy < 6.3:
+				return _lit(c.darkened(0.35), light)
+			if Vector2(dx, fy - 14.0).length() < 2.6:
+				return _lit(Color(0.85, 0.85, 0.88), 0.6)
+			if absf(dx) < 0.9 or absf(fy - 14.0) < 0.9:
+				return _lit(c.darkened(0.2), light)
+			return _lit(c, light * 1.2)
+		Items.MEAT_CHICKEN, Items.MEAT_MUTTON:
+			# but: beyaz kemik + ucunda et
+			var meat := Color(0.83, 0.55, 0.27) if id == Items.MEAT_CHICKEN else Color(0.6, 0.33, 0.24)
+			var big := 1.0 if id == Items.MEAT_CHICKEN else 1.2
+			var e := pow((u - 20.0) / (8.0 * big), 2.0) + pow(v / (5.6 * big), 2.0)
+			if e < 1.0:
+				return _lit(meat, v / 6.0 + (0.3 if e < 0.35 else 0.0))
+			if u > 2.0 and u < 14.0 and absf(v) < 1.6:
+				return _lit(Color(0.93, 0.9, 0.84), v / 1.6)
+			if Vector2(u - 2.5, absf(v) - 1.4).length() < 1.9:
+				return Color(0.93, 0.9, 0.84)
+			return none
+		Items.MEAT_PORK, Items.MEAT_BEEF, Items.ROTTEN_FLESH:
+			var e := pow(dx / 11.0, 2.0) + pow((fy - 16.0) / 7.5, 2.0)
+			if e >= 1.0:
+				return none
+			if id == Items.MEAT_PORK:
+				if e > 0.62 and fy < 15.0:
+					return _lit(Color(0.96, 0.9, 0.8), light)
+				return _lit(Color(0.86, 0.52, 0.45), light * 1.2)
+			if id == Items.MEAT_BEEF:
+				if Vector2(dx + 4.0, fy - 15.0).length() < 2.2:
+					return Color(0.94, 0.9, 0.82)
+				if int(fx + fy) % 6 == 0:
+					return Color(0.3, 0.14, 0.1)
+				return _lit(Color(0.56, 0.27, 0.2), light * 1.2)
+			if (int(fx * 0.7) * 7 + int(fy * 0.7) * 3) % 5 == 0:
+				return Color(0.28, 0.22, 0.12)
+			return _lit(Color(0.47, 0.52, 0.25), light * 1.2)
+		Items.POTION_ATTACK, Items.POTION_INT, Items.POTION_DEFENSE, Items.POTION_SPEED:
+			var liquid: Color = [Color(0.88, 0.2, 0.2), Color(0.3, 0.42, 0.96), Color(0.3, 0.78, 0.36), Color(0.96, 0.8, 0.2)][id - Items.POTION_ATTACK]
+			var glass := Color(0.82, 0.9, 0.95)
+			if fy >= 3.0 and fy < 6.5 and absf(dx) < 3.0:
+				return _lit(Color(0.55, 0.38, 0.2), light)
+			if fy >= 6.5 and fy < 13.0 and absf(dx) < 2.6:
+				return _lit(glass, -dx / 2.6)
+			var rr := Vector2(dx, fy - 20.0).length()
+			if rr < 8.6:
+				if rr < 6.9 and fy > 16.5:
+					return _lit(liquid, light * 1.4 + (0.5 if Vector2(dx + 2.5, fy - 18.5).length() < 1.6 else 0.0))
+				return _lit(glass, light)
+			return none
+		Items.TOTEM:
+			if fy >= 5.0 and fy < 13.0 and absf(dx) < 5.5:
+				if fy >= 8.0 and fy < 10.0 and absf(absf(dx) - 2.5) < 1.0:
+					return Color(0.15, 0.75, 0.35)
+				return _lit(gold, light + 0.2)
+			if fy >= 13.0 and fy < 27.0 and absf(dx) < 4.5:
+				return _lit(gold, light)
+			if fy >= 14.0 and fy < 18.5 and absf(dx) < 10.5:
+				return _lit(gold.darkened(0.15), light)
+			return none
+		Items.CROWN:
+			if fy >= 18.0 and fy < 26.0 and absf(dx) < 11.0:
+				if Vector2(dx, fy - 22.0).length() < 2.0:
+					return Color(0.85, 0.15, 0.2)
+				if Vector2(absf(dx) - 6.5, fy - 22.0).length() < 1.6:
+					return Color(0.25, 0.45, 0.95)
+				return _lit(gold, light + 0.1)
+			if fy >= 7.0 and fy < 18.0:
+				for cx: float in [-8.0, 0.0, 8.0]:
+					if absf(dx - cx) < (fy - 7.0) * 0.38 + 0.6:
+						return _lit(gold, light + 0.3)
+			return none
+	return none
+
+
 ## l: -1 (gölge) .. +1 (ışık)
 static func _lit(c: Color, l: float) -> Color:
 	l = clampf(l, -1.0, 1.0)
@@ -310,6 +426,8 @@ static func _item_pixel(icon: int, fx: float, fy: float) -> Color:
 			if absf(v) < hw:
 				return _lit(blade, 0.9 if absf(v) < 0.7 else v / hw * 0.8)
 		return none
+	if icon >= RPG_ICON_BASE:
+		return _rpg_pixel(Items.SWORD_WOOD + icon - RPG_ICON_BASE, fx, fy, u, v)
 	match icon:
 		0:   # çubuk
 			if u > 1.5 and u < 30.0 and absf(v) < 1.9:

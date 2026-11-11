@@ -152,9 +152,9 @@ static func icon_index(id: int) -> int:
 	return id - 100
 
 
-## Simgesi çizilmiş RPG eşyası mı? (şimdilik kılıçlar)
+## Simgesi çizilmiş RPG eşyası mı?
 static func has_icon(id: int) -> bool:
-	return id >= SWORD_WOOD and id <= SWORD_NETHER
+	return DEFS.has(id)
 
 
 ## Bir eşyanın simgesini verilen dikdörtgene çizer (HUD ve envanter ekranı).

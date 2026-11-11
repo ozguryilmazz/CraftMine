@@ -253,7 +253,9 @@ func _ready() -> void:
 	game.stats.hp = 30.0
 	# Zombi: yakına girince kendiliğinden saldırır
 	var zed: Mob = game.spawn_mob("zombie", player.position + fwd * 6.0 + Vector3(0, 0.3, 0))
-	await get_tree().create_timer(3.1).timeout
+	for step in 6:
+		await get_tree().create_timer(0.5).timeout
+		print("  zed t=", (step + 1) * 0.5, " pos=", zed.position, " vel=", zed.vel, " ground=", zed.on_ground, " player=", player.position)
 	print("zombie: aggro=", zed.aggro, " player hp=", game.stats.hp, " dist=", zed.position.distance_to(player.position))
 	await _shot("15_zombie_attack")
 	# Takip mesafesi: oyuncu uzaklaşınca bırakır
@@ -263,6 +265,34 @@ func _ready() -> void:
 	zed.queue_free()
 	game.stats.hp = 30.0
 	await get_tree().process_frame
+
+	# Ganimet sandığı: içerik, toplama, süre dolunca yok olma, simgeler
+	var chest: LootChest = game.spawn_chest(player.position + fwd * 2.5 + Vector3(0, 1.0, 0),
+		[[Items.MEAT_CHICKEN, 1, -1], [Items.STICK, 2, -1], [Items.SHIELD_WOOD, 1, 5]])
+	var far_chest: LootChest = game.spawn_chest(player.position + fwd * 5.0 + right * 2.0 + Vector3(0, 1.0, 0), [[Items.CROWN, 1, -1]])
+	print("empty roll makes no chest: ", game.spawn_chest(player.position, []) == null)
+	player.pitch = -0.35
+	await get_tree().create_timer(1.2).timeout
+	await _shot("16_chest")
+	game.inv.clear()
+	chest.position = player.position
+	await get_tree().create_timer(0.3).timeout
+	print("chest collected: freed=", not is_instance_valid(chest), " toast=", game.toast_text, " slot0=", game.inv.id_at(0), " slot1=", game.inv.id_at(1), "x", game.inv.counts[1],
+		" shield=", game.inv.id_at(2), "/", game.inv.dur_at(2))
+	await get_tree().create_timer(9.0).timeout
+	print("far chest after 10.5 s: gone=", not is_instance_valid(far_chest) or far_chest.expired, " chests=", game.chests.size())
+	game.inv.clear()
+	var slot := 0
+	for id: int in Items.DEFS.keys():
+		game.inv.set_slot(slot, id, 1)
+		slot += 1
+	game.open_ui(InventoryUI.MODE_INVENTORY)
+	await get_tree().create_timer(0.3).timeout
+	await _shot("17_icons")
+	game.ui.close()
+	game.inv.clear()
+	game.inv.set_slot(0, Items.SWORD_WOOD, 1)
+	game.select_slot(0)
 
 	# Karakter ekranı: XP kazan, level atla, puan dağıt
 	game.add_xp(250)

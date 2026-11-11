@@ -300,7 +300,7 @@ func _process(delta: float) -> void:
 	var wish := _think(delta) if ai_enabled else Vector3.ZERO
 	var feet := world.get_block(floori(position.x), floori(position.y + 0.2), floori(position.z))
 	var in_water := feet == Blocks.WATER
-	var k := minf((10.0 if on_ground else 3.0) * delta, 1.0)
+	var k := minf((10.0 if on_ground else 6.0) * delta, 1.0)   # havada da ilerleyebilsin: basamak tırmanma
 	vel.x = lerpf(vel.x, wish.x, k)
 	vel.z = lerpf(vel.z, wish.z, k)
 	if in_water:

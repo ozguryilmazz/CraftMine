@@ -26,6 +26,7 @@ const MAX_ACTIVE := 8
 const SEMI_INTERVAL := 10.0      # grup doğma denemeleri arası süre (sn): "dengeli"
 const ACTIVE_INTERVAL := 16.0    # "dengeliden az"
 const SAFE_RADIUS := 48.0        # başlangıç noktasının çevresinde aktif mob doğmaz
+const CHEST_PICKUP := 1.6        # ganimet sandığını toplama mesafesi
 const MOB_DESPAWN := 72.0        # oyuncudan bu kadar uzaklaşan mob silinir
 
 var world: World
@@ -70,6 +71,7 @@ var mobs: Array[Mob] = []
 var _attack_cd := 0.0
 var _spawn_timer := 0.0
 var _semi_timer := 0.0
+var chests: Array[LootChest] = []
 var _active_timer := 0.0
 
 
@@ -244,6 +246,7 @@ func _process(delta: float) -> void:
 	toast_timer = maxf(toast_timer - delta, 0.0)
 	_attack_cd = maxf(_attack_cd - delta, 0.0)
 	_update_mobs(delta)
+	_update_chests()
 	_update_drops(delta)
 	_update_sky()
 	_update_highlight()
@@ -566,10 +569,52 @@ func attack_mob(m: Mob) -> void:
 			var xp := int(m.def["xp"])
 			float_text("+%d XP" % xp, Color(0.45, 1.0, 0.4), at + Vector3(0, 0.45, 0))
 			add_xp(xp)
+			spawn_chest(m.position + Vector3(0, 0.3, 0), Loot.roll(m.type))
 			mobs.erase(m)
 			m.queue_free()
 	if weapon > 0 and inv.wear(selected):
 		toast("%s kırıldı" % Items.item_name(held))
+
+
+# ---------- Ganimet sandıkları ----------
+
+## items: [[eşya kimliği, adet, dayanıklılık (-1: tam)], ...]. Boşsa sandık düşmez.
+func spawn_chest(pos: Vector3, items: Array) -> LootChest:
+	if items.is_empty():
+		return null
+	var c := LootChest.new()
+	add_child(c)
+	c.setup(world, pos, items)
+	chests.append(c)
+	return c
+
+
+## Oyuncu sandığa yaklaşınca içindekiler envantere geçer; sığmayanlar sandıkta kalır.
+func _update_chests() -> void:
+	var center := player.position + Vector3(0, 0.6, 0)
+	var i := chests.size() - 1
+	while i >= 0:
+		var c := chests[i]
+		if not is_instance_valid(c) or c.expired:
+			chests.remove_at(i)
+		elif c.position.distance_to(center) < CHEST_PICKUP and death_timer <= 0.0:
+			var got: PackedStringArray = []
+			var left := []
+			for it: Array in c.items:
+				var rest := inv.add(it[0], it[1], it[2])
+				if rest < int(it[1]):
+					got.append(Items.item_name(it[0]) + ("" if it[1] - rest <= 1 else " x%d" % (it[1] - rest)))
+				if rest > 0:
+					left.append([it[0], rest, it[2]])
+			c.items = left
+			if not got.is_empty():
+				toast("Ganimet: " + ", ".join(got))
+			elif toast_timer <= 0.0:
+				toast("Envanter dolu")
+			if left.is_empty():
+				c.queue_free()
+				chests.remove_at(i)
+		i -= 1
 
 
 ## Dünyada yükselip kaybolan yazı (hasar, XP).
