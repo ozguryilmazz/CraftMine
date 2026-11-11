@@ -6,10 +6,10 @@ Kullanıcı Türkçe konuşur; yanıtlar Türkçe yazılır. Commit ve push işl
 
 ## Mevcut durum
 
-- **Sürüm:** 1.12.1 (version_code 16). Son commit konusu: telefonda bulunan dört hatanın düzeltmesi.
+- **Sürüm:** 1.13.0 (version_code 17). Son commit konusu: tam ekran iki panelli envanter ekranı ve tarif listesinden hızlı üretim.
 - **Tamamlanan aşamalar:** 1–10 (aşağıdaki tabloya bakın) ve ilk telefon geri bildirimi düzeltmeleri.
-- **Sıradaki iş:** Kullanıcının v1.12.1'i telefonda denemesi bekleniyor. Ardından Aşama 11 (çok oyunculu eşitleme).
-- **Gerçek cihazda doğrulanmayanlar:** v1.12.1 düzeltmeleri, boss'ların kendiliğinden doğması, çok oyunculu kodun tamamı, oyun içi güncelleme kontrolü.
+- **Sıradaki iş:** Kullanıcının v1.13.0'ı telefonda denemesi bekleniyor. Ardından Aşama 11 (çok oyunculu eşitleme).
+- **Gerçek cihazda doğrulanmayanlar:** v1.12.1 düzeltmeleri, v1.13.0 envanter ekranı (dokunma, sürükle-bırak, sekmeler), boss'ların kendiliğinden doğması, çok oyunculu kodun tamamı, oyun içi güncelleme kontrolü.
 
 ## Proje
 
@@ -33,7 +33,7 @@ Dokunmatik kontrollü, Minecraft tarzı voxel oyun. Godot 4.5.1, GDScript, `gl_c
 | `scripts/loot.gd`, `scripts/loot_chest.gd` | Drop tabloları, sandık zarı, sandık nesnesi |
 | `scripts/mobs/mob_db.gd`, `scripts/mobs/mob.gd` | 13 mobun değerleri; model, fizik, yapay zeka |
 | `scripts/ui/hud.gd` | Dokunmatik girdi, hotbar, can/XP çubukları, level butonu, iksir listesi, boss çubuğu |
-| `scripts/ui/inventory_ui.gd` | Envanter, çalışma masası, fırın, ganimet sandığı ekranı, ekipman yuvaları |
+| `scripts/ui/inventory_ui.gd` | Tam ekran envanter: solda tarif listesi / envanter sekmeleri, sağda üretim (ya da fırın, sandık) / ekipman sekmeleri, altta hotbar |
 | `scripts/ui/stats_ui.gd` | Karakter ekranı (stat puanı dağıtma) |
 | `scripts/world/*` | Chunk üretimi, mesh, atlas (blok ve eşya simgeleri), dünya değişiklikleri |
 | `scripts/net/*`, `firebase/database.rules.json` | Ağ katmanı ve Firebase kuralları |
@@ -87,6 +87,11 @@ Kaynaklar kullanıcının `Downloads` klasöründeki `mns2026.xlsx` ve `Yeni Met
 - Eşyalar sütun ağırlıklarıyla (%60/30/20/10/5/1; aktif ve boss'ta ikinci sütun %40), aynı sütun tekrar etmeden seçilir. Tablodaki "taş" kırık taş olarak verilir.
 - Sandık 10 sn'de yok olur. **Otomatik toplanmaz:** dokununca içeriği açılır, oyuncu istediği eşyayı ya da "Hepsini Al"ı seçer. Ekran açıkken süre işlemez.
 
+**Envanter ekranı**
+- Kullanıcı Minecraft Bedrock envanter ekranının düzenini örnek gösterdi: iki büyük panel, kenarlarda sekmeler, altta hotbar. Düzen ve işlev buna göre kuruldu; görseller (simgeler, yazı tipi) oyunun kendi çizimleridir, birebir kopyalanmaz.
+- Sol sekmeler: "Tarifler" (yalnızca envanter ve çalışma masası ekranlarında; ızgaraya sığan tarifler, dokununca malzeme envanterden alınıp üretilir) ve "Envanter" (27 yuva). Sağ sekmeler: ekrana özgü içerik (üretim 2x2 / 3x3, fırın, sandık) ve "Ekipman".
+- Varsayılan sol sekme tariflerdir; eşya sürüklemek için "Envanter" sekmesine geçilir ya da hotbar kullanılır.
+
 **Diğer**
 - Düşme hasarı: 3 bloğa kadar zararsız, sonrası blok başına 2 can; suya düşmek zararsız (Claude ekledi).
 - Yanında ya da üstünde su olan blok kırılınca yeri suyla dolar; su akmaz.
@@ -107,6 +112,7 @@ Kaynaklar kullanıcının `Downloads` klasöründeki `mns2026.xlsx` ve `Yeni Met
 | 1.10.0 | Aşama 8: ekipman yuvaları |
 | 1.11.0 | Aşama 9: iksirler, totem |
 | 1.12.0 | Aşama 10: boss'lar |
+| 1.13.0 | Envanter ekranı yeniden düzenlendi: tam ekran, kabartmalı iki panel, sekmeler, tarif listesinden hızlı üretim (malzemesi eksik tarifler kırmızı) |
 | 1.12.1 | Telefon geri bildirimi: sudan çıkış, suyun dolması, dokunarak açılan sandık, kılıç üretiminde level sınırı, eldeki kılıcın hasar göstergesi |
 
 ## Kalan işler

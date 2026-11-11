@@ -115,6 +115,25 @@ func find(id: int) -> int:
 	return -1
 
 
+## Ana envanterdeki toplam adet.
+func count(id: int) -> int:
+	var n := 0
+	for i in SIZE:
+		if counts[i] > 0 and ids[i] == id:
+			n += counts[i]
+	return n
+
+
+## Ana envanterden toplam n adet eşya çıkarır; çıkarılamayan adedi döndürür.
+func remove(id: int, n: int) -> int:
+	for i in SIZE:
+		if n <= 0:
+			break
+		if counts[i] > 0 and ids[i] == id:
+			n -= take(i, n)
+	return n
+
+
 ## Ekipman yuvasına (0..3) bu eşya takılabilir mi?
 static func fits_equip(eq: int, id: int) -> bool:
 	return Items.kind(id) == EQUIP_KINDS[eq]

@@ -31,6 +31,22 @@ static func _init_list() -> void:
 		_add(["M", "M", "S"], k, Items.SWORD_WOOD + tier, 1)   # nether kılıç üretilemez, yalnızca ganimet
 
 
+## Tüm tarifler (tarif listesi için).
+static func all() -> Array[Dictionary]:
+	if _list.is_empty():
+		_init_list()
+	return _list
+
+
+## Tarifin gerektirdiği malzemeler: { eşya kimliği: adet }.
+static func needs(r: Dictionary) -> Dictionary:
+	var out := {}
+	for id: int in r["cells"]:
+		if id != 0:
+			out[id] = int(out.get(id, 0)) + 1
+	return out
+
+
 ## n x n ızgaradaki (satır satır) eşyalara uyan tarifi bulur. Yoksa boş sözlük.
 ## Tarif ızgaranın neresine dizilirse dizilsin ve yatay ayna görüntüsü de kabul edilir.
 static func find(grid: Array, n: int) -> Dictionary:

@@ -327,6 +327,7 @@ func _ready() -> void:
 		game.inv.set_slot(slot, id, 1)
 		slot += 1
 	game.open_ui(InventoryUI.MODE_INVENTORY)
+	game.ui.left_tab = InventoryUI.LEFT_ITEMS
 	await get_tree().create_timer(0.3).timeout
 	await _shot("17_icons")
 	game.ui.close()
@@ -341,6 +342,8 @@ func _ready() -> void:
 	game.inv.set_slot(12, Items.SHIELD_WOOD, 1, 2)
 	game.inv.set_slot(13, Items.SHIELD_IRON, 1)
 	game.open_ui(InventoryUI.MODE_INVENTORY)
+	game.ui.left_tab = InventoryUI.LEFT_ITEMS
+	game.ui.right_tab = InventoryUI.RIGHT_EQUIP
 	game.ui.press("inv", 0)
 	game.ui.press("eq", 0)
 	print("sword into helmet slot: eq0=", game.inv.id_at(Inventory.SIZE), " hint=", game.ui._hint)
@@ -440,6 +443,35 @@ func _ready() -> void:
 	game.ui.press("grid", 7)
 	game.ui.press("result", 0)
 	print("stone sword at level ", game.stats.level, ": crafted=", game.inv.find(Items.SWORD_STONE) >= 0, " hint=", game.ui._hint)
+	game.ui.close()
+
+	# Tarif listesi: hızlı üretim
+	game.inv.clear()
+	game.inv.set_slot(0, Blocks.LOG, 3)
+	game.open_ui(InventoryUI.MODE_INVENTORY)
+	await get_tree().create_timer(0.2).timeout
+	var rs: Array = game.ui._shown_recipes()
+	print("recipes shown (2x2)=", rs.size(), " planks craftable=", game.ui.can_quick_craft(rs[0]), " table craftable=", game.ui.can_quick_craft(rs[2]))
+	game.ui.press("recipe", 0)
+	game.ui.press("recipe", 0)
+	game.ui.press("recipe", 2)
+	game.ui.press("recipe", 1)
+	game.ui.press("recipe", 3)
+	print("quick craft: logs=", game.inv.count(Blocks.LOG), " planks=", game.inv.count(Blocks.PLANKS), " table=", game.inv.count(Blocks.CRAFTING_TABLE), " sticks=", game.inv.count(Items.STICK), " hint=", game.ui._hint)
+	await get_tree().create_timer(0.3).timeout
+	await _shot("21_recipes")
+	game.ui.close()
+	game.inv.add(Blocks.COBBLE, 12)
+	game.inv.add(Items.COAL, 2)
+	game.open_ui(InventoryUI.MODE_TABLE)
+	await get_tree().create_timer(0.3).timeout
+	print("recipes shown (3x3)=", game.ui._shown_recipes().size())
+	await _shot("22_table_recipes")
+	game.ui.left_tab = InventoryUI.LEFT_ITEMS
+	game.ui.press("inv", 0)
+	game.ui.press("grid", 4)
+	await get_tree().create_timer(0.3).timeout
+	await _shot("23_table_items")
 	game.ui.close()
 
 	# Su: kıyı bloğu kırılınca suyla dolar; su yüzeyi 1 blok aşağıdayken karaya çıkılabilir
