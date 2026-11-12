@@ -12,6 +12,11 @@ var room_code := ""
 var player_name := "Oyuncu"
 var local_id := ""
 var touch_mode := false
+## Grafik kalitesi: 0 düşük, 1 orta, 2 yüksek. Grafik aşamaları (gölge, parçacık, sallanma) buna bakar.
+signal quality_changed
+const QUALITY_NAMES := ["Düşük", "Orta", "Yüksek"]
+var quality := 1
+var show_fps := true
 ## Tüm arayüzde kullanılan kalın yazı tipi.
 var font: Font
 ## Kalın ve büyük yazılı arayüz teması (menü, duraklatma ekranı, iletişim kutuları).
@@ -50,6 +55,8 @@ func _ready() -> void:
 	local_id = cfg.get_value("player", "id", "")
 	if local_id == "":
 		local_id = "p%08x%08x" % [randi(), randi()]
+	quality = clampi(int(cfg.get_value("graphics", "quality", 1)), 0, 2)
+	show_fps = bool(cfg.get_value("graphics", "fps", true))
 	save_settings()
 
 
@@ -57,7 +64,21 @@ func save_settings() -> void:
 	var cfg := ConfigFile.new()
 	cfg.set_value("player", "name", player_name)
 	cfg.set_value("player", "id", local_id)
+	cfg.set_value("graphics", "quality", quality)
+	cfg.set_value("graphics", "fps", show_fps)
 	cfg.save(SETTINGS_PATH)
+
+
+func set_quality(q: int) -> void:
+	quality = clampi(q, 0, 2)
+	save_settings()
+	quality_changed.emit()
+
+
+## Görüş mesafesi (chunk): telefonda 3 / 4 / 5, bilgisayarda 4 / 6 / 8.
+func render_distance() -> int:
+	var table: Array = [3, 4, 5] if OS.has_feature("mobile") else [4, 6, 8]
+	return table[quality]
 
 
 func has_saved_world() -> bool:

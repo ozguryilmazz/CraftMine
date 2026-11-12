@@ -35,15 +35,28 @@ var _mat_water: StandardMaterial3D
 
 func setup(p_seed: int, p_render_distance: int) -> void:
 	gen = WorldGen.new(p_seed)
-	render_distance = p_render_distance
 	ChunkMesher.init_tables()
 	_mat_opaque = Atlas.block_material()
 	_mat_water = Atlas.water_material()
+	set_render_distance(p_render_distance)
+
+
+## Görüş mesafesini çalışırken değiştirir; uzakta kalan chunk'lar _unload_far ile boşalır.
+func set_render_distance(p_render_distance: int) -> void:
+	render_distance = p_render_distance
+	_order.clear()
 	var r := render_distance + 1
 	for dz in range(-r, r + 1):
 		for dx in range(-r, r + 1):
 			_order.append(Vector2i(dx, dz))
 	_order.sort_custom(func(a: Vector2i, b: Vector2i) -> bool: return a.length_squared() < b.length_squared())
+	# Mesafe küçüldüyse dışarıda kalan mesh'ler hemen kaldırılır (veri durur; yaklaşınca yeniden kurulur).
+	for key: Vector2i in _chunks.keys():
+		var ch: Chunk = _chunks[key]
+		if ch.node != null and maxi(absi(key.x - center.x), absi(key.y - center.y)) > render_distance + 1:
+			ch.node.queue_free()
+			ch.node = null
+			ch.dirty = true
 
 
 func _exit_tree() -> void:

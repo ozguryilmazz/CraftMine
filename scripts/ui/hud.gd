@@ -279,6 +279,11 @@ func _draw() -> void:
 	for gy in 3:
 		for gx in 3:
 			draw_rect(Rect2(ir.position + Vector2(13.0 + gx * 13.0, 13.0 + gy * 13.0), Vector2(11.0, 11.0)), Color(1, 1, 1, 0.85))
+	if Session.show_fps:
+		var fx := 92.0 if touch_mode else 14.0
+		var fps_text := "%d FPS" % int(Engine.get_frames_per_second())
+		draw_string(_font, Vector2(fx + 1.5, 43.5), fps_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(0, 0, 0, 0.7))
+		draw_string(_font, Vector2(fx, 42.0), fps_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(1, 1, 0.6, 0.95))
 	# Üst bilgi
 	if game.info_text != "":
 		draw_string(_font, Vector2(0, 46.0), game.info_text, HORIZONTAL_ALIGNMENT_CENTER, size.x, 26, white)

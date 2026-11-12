@@ -55,6 +55,8 @@ var _highlight: MeshInstance3D
 var _remotes := {}             # uid -> PlayerModel
 var _pause_panel: Control
 var _pause_label: Label
+var _quality_button: Button
+var _fps_button: Button
 var _resume_button: Button
 var _room_closed := false
 var _save_timer := 0.0
@@ -81,17 +83,16 @@ var _active_timer := 0.0
 
 func _ready() -> void:
 	_online = Session.mode != "solo"
-	var mobile := OS.has_feature("mobile")
 	_setup_environment()
 
 	world = World.new()
 	add_child(world)
-	world.setup(Session.world_seed, 4 if mobile else 6)
+	world.setup(Session.world_seed, Session.render_distance())
 	if Session.mode != "join":
 		world.import_edits(Session.world_edits)
 	world.block_changed.connect(_on_local_block)
-	_env.fog_depth_begin = world.render_distance * 16.0 * 0.55
-	_env.fog_depth_end = world.render_distance * 16.0 - 6.0
+	_apply_quality()
+	Session.quality_changed.connect(_apply_quality)
 
 	player = Player.new()
 	player.world = world
@@ -155,6 +156,17 @@ func _setup_environment() -> void:
 	_sun = DirectionalLight3D.new()
 	_sun.rotation_degrees = Vector3(-55, 35, 0)
 	add_child(_sun)
+
+
+## Grafik kalitesi ayarını uygular: görüş mesafesi, sis ve kenar yumuşatma.
+func _apply_quality() -> void:
+	world.set_render_distance(Session.render_distance())
+	_env.fog_depth_begin = world.render_distance * 16.0 * 0.55
+	_env.fog_depth_end = world.render_distance * 16.0 - 6.0
+	get_viewport().msaa_3d = Viewport.MSAA_2X if Session.quality == 2 else Viewport.MSAA_DISABLED
+	if _quality_button != null:
+		_quality_button.text = "Grafik: %s" % Session.QUALITY_NAMES[Session.quality]
+		_fps_button.text = "FPS Sayacı: %s" % ("Açık" if Session.show_fps else "Kapalı")
 
 
 func _make_highlight() -> MeshInstance3D:
@@ -225,6 +237,18 @@ func _build_pause_panel(layer: CanvasLayer) -> void:
 	resume.pressed.connect(toggle_pause)
 	_resume_button = resume
 	box.add_child(resume)
+	_quality_button = Button.new()
+	_quality_button.custom_minimum_size = Vector2(360, 76)
+	_quality_button.pressed.connect(func() -> void: Session.set_quality((Session.quality + 1) % 3))
+	box.add_child(_quality_button)
+	_fps_button = Button.new()
+	_fps_button.custom_minimum_size = Vector2(360, 76)
+	_fps_button.pressed.connect(func() -> void:
+		Session.show_fps = not Session.show_fps
+		Session.save_settings()
+		_apply_quality())
+	box.add_child(_fps_button)
+	_apply_quality()
 	var quit := Button.new()
 	quit.text = "Ana Menü"
 	quit.custom_minimum_size = Vector2(360, 76)

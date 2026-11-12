@@ -23,6 +23,21 @@ func _ready() -> void:
 	add_child(game)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	await get_tree().create_timer(7.0).timeout
+	if "--gfx" in OS.get_cmdline_user_args():
+		for q in [0, 2, 1]:
+			Session.set_quality(q)
+			await get_tree().create_timer(5.0).timeout
+			var meshed := 0
+			for ch in game.world._chunks.values():
+				if ch.node != null:
+					meshed += 1
+			print("quality=", q, " rd=", game.world.render_distance, " meshed=", meshed, " msaa=", get_viewport().msaa_3d, " fog_end=", game._env.fog_depth_end)
+			await _shot("g0_quality_%d" % q)
+		game.toggle_pause()
+		await get_tree().create_timer(0.3).timeout
+		await _shot("g0_pause")
+		get_tree().quit()
+		return
 	var player: Player = game.player
 	print("pos=", player.position, " ground=", player.on_ground, " chunks=", game.world._chunks.size())
 	await _shot("1_first_person")
