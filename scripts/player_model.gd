@@ -18,13 +18,19 @@ var target_pitch := 0.0
 var last_update := 0.0
 
 
-func _init(shirt := Color(0.2, 0.55, 0.75)) -> void:
+const SHIRT := Color(0.2, 0.55, 0.75)
+
+
+func _init(shirt := SHIRT) -> void:
 	var skin := Color(0.87, 0.68, 0.53)
 	var pants := Color(0.2, 0.22, 0.5)
 	_leg_l = _limb(Vector3(-0.13, 0.75, 0), Vector3(0.24, 0.75, 0.24), pants)
 	_leg_r = _limb(Vector3(0.13, 0.75, 0), Vector3(0.24, 0.75, 0.24), pants)
 	_arm_l = _limb(Vector3(-0.38, 1.45, 0), Vector3(0.22, 0.7, 0.22), skin)
 	_arm_r = _limb(Vector3(0.38, 1.45, 0), Vector3(0.22, 0.7, 0.22), skin)
+	# Tişört kolları: kolların üst kısmını saran, biraz daha kalın kutular
+	for arm: Node3D in [_arm_l, _arm_r]:
+		_box(arm, Vector3(0, -0.14, 0), Vector3(0.25, 0.3, 0.25), shirt)
 	_box(self, Vector3(0, 1.1, 0), Vector3(0.52, 0.7, 0.26), shirt)
 	_head = Node3D.new()
 	_head.position = Vector3(0, 1.45, 0)

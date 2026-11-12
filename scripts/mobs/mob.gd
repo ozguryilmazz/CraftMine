@@ -42,6 +42,8 @@ var _state := "idle"
 var _state_time := 1.0
 var _dir := Vector3.ZERO
 var _flee_from := Vector3.ZERO
+var _flee_pick := 0.0
+var _flee_side := 1.0
 var _phase := 0.0
 
 
@@ -309,6 +311,7 @@ func provoke(from: Vector3) -> void:
 		_state = "flee"
 		_state_time = FLEE_TIME
 		_flee_from = from
+		_flee_pick = 0.0
 	else:
 		aggro = true
 
@@ -417,8 +420,22 @@ func _think(delta: float) -> Vector3:
 				_state = "idle"
 				_state_time = randf_range(1.0, 3.0)
 				return Vector3.ZERO
-			var away := Vector3(position.x - _flee_from.x, 0, position.z - _flee_from.z)
-			_dir = away.normalized() if away.length() > 0.01 else Vector3(1, 0, 0)
+			# Kaçış yönü kısa aralıklarla seçilir: önce tam ters yön, su varsa sağa sola sapılır;
+			# hiçbir yön kuru değilse (son çare) suya girilir.
+			_flee_pick -= delta
+			if _flee_pick <= 0.0:
+				_flee_pick = 0.3
+				var src := player.position if player != null else _flee_from
+				var away := Vector3(position.x - src.x, 0, position.z - src.z)
+				away = away.normalized() if away.length() > 0.01 else Vector3(1, 0, 0)
+				_dir = away
+				for deg: float in [0.0, 35.0, -35.0, 70.0, -70.0, 105.0, -105.0]:
+					var cand := away.rotated(Vector3.UP, deg_to_rad(deg) * _flee_side)
+					if not _water_toward(cand):
+						_dir = cand
+						if deg != 0.0:
+							_flee_side = signf(deg) * _flee_side   # seçilen tarafta kal, sağa sola titreme
+						break
 			return _dir * speed * 2.2
 		"walk":
 			if _state_time <= 0.0 or not _safe_ahead():
@@ -432,6 +449,23 @@ func _think(delta: float) -> Vector3:
 		_state = "walk"
 		_state_time = randf_range(1.5, 4.5)
 	return Vector3.ZERO
+
+
+## Bu yönde 1-4 blok ileride su var mı? (Mob zaten sudaysa yön fark etmez.)
+func _water_toward(d: Vector3) -> bool:
+	var y := floori(position.y + 0.1)
+	if world.get_block(floori(position.x), y, floori(position.z)) == Blocks.WATER:
+		return false
+	for dist: float in [1.0, 2.2, 3.4]:
+		var ax := floori(position.x + d.x * dist)
+		var az := floori(position.z + d.z * dist)
+		for dy in range(1, -5, -1):
+			var b := world.get_block(ax, y + dy, az)
+			if b == Blocks.WATER:
+				return true
+			if b != Blocks.AIR:
+				break
+	return false
 
 
 ## Gezinirken önünde su ya da uçurum var mı?

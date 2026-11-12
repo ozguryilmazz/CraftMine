@@ -110,6 +110,52 @@ func _ready() -> void:
 		print("emitters left=", left)
 		get_tree().quit()
 		return
+	if "--arm" in OS.get_cmdline_user_args():
+		game.sky_time_override = 0.25
+		var ap: Player = game.player
+		game.inv.clear()
+		await get_tree().create_timer(0.3).timeout
+		await _shot("a1_arm_rest")
+		for step in 4:
+			ap.swing_once()
+			for fr in 2 + step * 4:
+				await get_tree().process_frame
+			await _shot("a2_arm_swing_%d" % step)
+			await get_tree().create_timer(0.4).timeout
+		game.inv.set_slot(0, Items.SWORD_IRON, 1)
+		game.select_slot(0)
+		await get_tree().create_timer(0.3).timeout
+		ap.swing_once()
+		for fr in 5:
+			await get_tree().process_frame
+		await _shot("a3_sword_swing")
+		ap.toggle_view()
+		await get_tree().create_timer(0.4).timeout
+		await _shot("a4_third")
+		ap.toggle_view()
+		# Kaçış sınaması: düz zemin, mobun arkasında (oyuncunun karşı tarafında) su şeridi
+		var fy: int = 40
+		for fx in range(-8, 9):
+			for fz in range(-8, 9):
+				game.world.set_block(Vector3i(fx, fy, fz), Blocks.STONE)
+				for up in range(1, 6):
+					game.world.set_block(Vector3i(fx, fy + up, fz), Blocks.AIR)
+		for fx in range(-8, 9):
+			for fz in range(-6, -3):
+				game.world.set_block(Vector3i(fx, fy, fz), Blocks.WATER)
+		ap.teleport(Vector3(0.5, fy + 1.0, 4.5))
+		await get_tree().create_timer(1.5).timeout
+		var pig: Mob = game.spawn_mob("pig", Vector3(0.5, fy + 1.0, -1.5))
+		await get_tree().create_timer(0.5).timeout
+		pig.provoke(ap.position)
+		var wet := 0
+		for tick in 30:
+			await get_tree().create_timer(0.1).timeout
+			if game.world.get_block(floori(pig.position.x), fy, floori(pig.position.z)) == Blocks.WATER and pig.position.y < fy + 0.9:
+				wet += 1
+		print("flee: pig pos=", pig.position, " wet ticks=", wet, "/30")
+		get_tree().quit()
+		return
 	if "--gfx" in OS.get_cmdline_user_args():
 		for q in [0, 2, 1]:
 			Session.set_quality(q)

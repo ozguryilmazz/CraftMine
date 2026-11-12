@@ -35,8 +35,10 @@ var model: PlayerModel
 
 ## Kırma sırasında oyun tarafından her karede ayarlanır.
 var swinging := false
-var _swing_timer := 0.0
-var _swing_phase := 0.0
+var _swing_t := 0.0          # vuruşun ilerlemesi: 0 (yok) .. 1 (bitti)
+const SWING_TIME := 0.3
+const ARM_POS := Vector3(0.5, -0.5, -0.7)
+const HAND_POS := Vector3(0.52, -0.62, -0.8)
 var _arm: Node3D
 var _hand: Node3D           # elde tutulan eşyanın bilek ekseni
 var _held_vis: MeshInstance3D
@@ -74,6 +76,17 @@ func _ready() -> void:
 	arm_mesh.mesh = box
 	arm_mesh.position = Vector3(0, 0, -0.2)
 	_arm.add_child(arm_mesh)
+	# Tişört kolu: kolun omuza yakın yarısını saran, biraz daha kalın kutu (3. şahıs modelindeki tişörtle aynı renk)
+	var sleeve_mesh := MeshInstance3D.new()
+	var sbox := BoxMesh.new()
+	sbox.size = Vector3(0.128, 0.128, 0.22)
+	var cloth: StandardMaterial3D = skin.duplicate()
+	cloth.albedo_color = PlayerModel.SHIRT
+	cloth.render_priority = 2
+	sbox.material = cloth
+	sleeve_mesh.mesh = sbox
+	sleeve_mesh.position = Vector3(0, 0, -0.09)
+	_arm.add_child(sleeve_mesh)
 	_hand = Node3D.new()
 	_hand.position = Vector3(0.52, -0.62, -0.8)
 	camera.add_child(_hand)
@@ -81,7 +94,7 @@ func _ready() -> void:
 
 ## Tek seferlik kol sallama (blok yerleştirme).
 func swing_once() -> void:
-	_swing_timer = 0.25
+	_swing_t = 0.001   # her vuruş hareketi baştan başlatır
 
 
 ## Elde tutulan eşyanın görselini günceller (0: boş el).
@@ -151,14 +164,24 @@ func _process(delta: float) -> void:
 		_simulate(delta)
 		position = _pos
 	_update_camera()
-	var active := swinging or _swing_timer > 0.0
-	_swing_timer -= delta
-	_swing_phase = _swing_phase + delta * 13.0 if active else 0.0
-	var swing := absf(sin(_swing_phase)) if active else 0.0
-	_arm.rotation = Vector3(0.35 - swing * 0.7, 0.2, 0.0)
+	# Vuruş: kol hızla öne-aşağı ve ekranın ortasına doğru savrulur, sonra yavaşça yerine döner.
+	# s1 hareketin başında tepe yapar (hızlı iniş), s2 ortasında (yumuşak dönüş).
+	if _swing_t > 0.0:
+		_swing_t += delta / SWING_TIME
+		if _swing_t >= 1.0:
+			_swing_t = 0.001 if swinging else 0.0   # basılı tutulurken (kırma) art arda vurur
+	elif swinging:
+		_swing_t = 0.001
+	var s1 := sin(sqrt(_swing_t) * PI)
+	var s2 := sin(_swing_t * PI)
+	var off := Vector3(-0.34 * s1, 0.1 * sin(sqrt(_swing_t) * TAU) + 0.06 * s1, -0.22 * s2)
+	_arm.position = ARM_POS + off
+	_arm.rotation = Vector3(0.35 - s1 * 0.6, 0.2 + s1 * 0.75, s2 * 0.35)
 	_arm.visible = not third_person and _held_id <= 0   # eşya tutarken yalnızca eşya görünür
-	_hand.rotation = Vector3(-swing * 0.85, swing * 0.25, swing * 0.2)   # bilekten öne doğru vuruş
+	_hand.position = HAND_POS + off
+	_hand.rotation = Vector3(-s1 * 0.95, s1 * 0.6, s2 * 0.3)
 	_hand.visible = not third_person
+	var swing := s1
 	model.rotation.y = yaw
 	model.animate(delta, Vector2(vel.x, vel.z).length(), pitch, swing * 1.3)
 

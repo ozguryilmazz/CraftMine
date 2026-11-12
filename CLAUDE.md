@@ -6,10 +6,10 @@ Kullanıcı Türkçe konuşur; yanıtlar Türkçe yazılır. Commit ve push işl
 
 ## Mevcut durum
 
-- **Sürüm:** 1.20.0 (version_code 25). Son commit konusu: G6 — kırma parçacıkları.
+- **Sürüm:** 1.21.0 (version_code 26). Son commit konusu: kol vuruş hareketi, tişört kolu, mobların suya kaçmaması, eşya simgeleri.
 - **Tamamlanan aşamalar:** 1–10 (aşağıdaki tabloya bakın) ve ilk telefon geri bildirimi düzeltmeleri.
-- **Grafik yol haritası:** G0–G6 tamamlandı (v1.14.0 … v1.20.0). **Sıradaki iş G7** (meşale ateşi). Kullanıcı G3'ü telefonda ölçmeden G4'e geçilmesini istedi; yüksek ayardaki (gölgeli) telefon FPS'i hâlâ bilinmiyor. **Telefon ölçümü (kullanıcı, 12 Kasım 2026, v1.15.0, Samsung A34):** üç kalite ayarında da 60 FPS (ekran yenileme sınırı), chunk yüklenirken takılma yok. Yani cihazda pay var; görüş mesafesi ve MSAA FPS'i düşürmüyor. Aşama 11 (çok oyunculu) grafiklerden sonraya kaldı.
-- **Gerçek cihazda doğrulanmayanlar:** v1.20.0 kırma parçacıkları, v1.18.0–1.19.0 dokular ve varyantlar (beğeni), v1.17.0 gölgeler (yüksek ayarda FPS ve görünüm; PC'de gölge FPS'i belirgin düşürdü), v1.16.0 gündüz-gece (renkler, gece parlaklığı), v1.12.1 düzeltmeleri, v1.13.0 envanter ekranı (dokunma, sürükle-bırak, sekmeler), boss'ların kendiliğinden doğması, çok oyunculu kodun tamamı, oyun içi güncelleme kontrolü.
+- **Grafik yol haritası:** G0–G6 tamamlandı (v1.14.0 … v1.20.0). **G7 (meşale ateşi) kullanıcının isteğiyle ertelendi** (12 Kasım 2026: "g7 şimdilik kalsın"); kullanıcı istemeden G7–G9'a başlanmaz. Araya giren istekler v1.21.0'da yapıldı (sürüm geçmişine bakın). Kullanıcı G3'ü telefonda ölçmeden G4'e geçilmesini istedi; yüksek ayardaki (gölgeli) telefon FPS'i hâlâ bilinmiyor. **Telefon ölçümü (kullanıcı, 12 Kasım 2026, v1.15.0, Samsung A34):** üç kalite ayarında da 60 FPS (ekran yenileme sınırı), chunk yüklenirken takılma yok. Yani cihazda pay var; görüş mesafesi ve MSAA FPS'i düşürmüyor. Aşama 11 (çok oyunculu) grafiklerden sonraya kaldı.
+- **Gerçek cihazda doğrulanmayanlar:** v1.21.0 (kol hareketi, simgeler, mob kaçışı), v1.20.0 kırma parçacıkları, v1.18.0–1.19.0 dokular ve varyantlar (beğeni), v1.17.0 gölgeler (yüksek ayarda FPS ve görünüm; PC'de gölge FPS'i belirgin düşürdü), v1.16.0 gündüz-gece (renkler, gece parlaklığı), v1.12.1 düzeltmeleri, v1.13.0 envanter ekranı (dokunma, sürükle-bırak, sekmeler), boss'ların kendiliğinden doğması, çok oyunculu kodun tamamı, oyun içi güncelleme kontrolü.
 
 ## Proje
 
@@ -88,6 +88,16 @@ Kaynaklar kullanıcının `Downloads` klasöründeki `mns2026.xlsx` ve `Yeni Met
 - Eşyalar sütun ağırlıklarıyla (%60/30/20/10/5/1; aktif ve boss'ta ikinci sütun %40), aynı sütun tekrar etmeden seçilir. Tablodaki "taş" kırık taş olarak verilir.
 - Sandık 10 sn'de yok olur. **Otomatik toplanmaz:** dokununca içeriği açılır, oyuncu istediği eşyayı ya da "Hepsini Al"ı seçer. Ekran açıkken süre işlemez.
 
+**Kol ve vuruş (v1.21.0)**
+- Kullanıcı vuruş hareketinin Minecraft'taki gibi olmasını istedi: `player.gd` içinde `_swing_t` (0..1, `SWING_TIME` 0.3 sn), `s1 = sin(sqrt(t)·π)` hızlı iniş, `s2 = sin(t·π)` yumuşak dönüş; `_arm` ve `_hand` hem kayar hem döner. İlk denemede kol ekranın altına kaçıyordu; eğim azaltılıp içe dönüş artırıldı.
+- Tişört rengi `PlayerModel.SHIRT`; birinci şahıs kolda omuza yakın yarıyı saran ikinci kutu (`render_priority` 2), modelde kolların üst kısmında.
+
+**Mob kaçışı (v1.21.0)**
+- `mob.gd` `_think` "flee": 0.3 sn'de bir yön seçer; oyuncudan tam ters yön, önünde (1–3,4 blok) su varsa ±35°, ±70°, ±105° denenir, hiçbiri kuru değilse suya girer (`_water_toward`). Seçilen taraf `_flee_side` ile korunur.
+
+**Eşya simgeleri (v1.21.0)**
+- `Atlas._build_items`: şekil pikselleri `_item_pixel`'den gelir, sonra kabartma (sol/üst iç kenar açık, sağ/alt koyu) ve şeklin **dışına** koyu dış çizgi (`_outline`) eklenir. `_lit` ışığı yarım basamaklara yuvarlar. `_handle` damarlı ahşap sap çizer.
+
 **Envanter ekranı**
 - Kullanıcı Minecraft Bedrock envanter ekranının düzenini örnek gösterdi: iki büyük panel, kenarlarda sekmeler, altta hotbar. Düzen ve işlev buna göre kuruldu; görseller (simgeler, yazı tipi) oyunun kendi çizimleridir, birebir kopyalanmaz.
 - Sol sekmeler: "Tarifler" (yalnızca envanter ve çalışma masası ekranlarında; ızgaraya sığan tarifler, dokununca malzeme envanterden alınıp üretilir) ve "Envanter" (27 yuva). Sağ sekmeler: ekrana özgü içerik (üretim 2x2 / 3x3, fırın, sandık) ve "Ekipman".
@@ -113,6 +123,7 @@ Kaynaklar kullanıcının `Downloads` klasöründeki `mns2026.xlsx` ve `Yeni Met
 | 1.10.0 | Aşama 8: ekipman yuvaları |
 | 1.11.0 | Aşama 9: iksirler, totem |
 | 1.12.0 | Aşama 10: boss'lar |
+| 1.21.0 | Kullanıcı istekleri: birinci şahıs kol vuruşu (kol öne ve ekranın ortasına savrulup döner; her vuruş baştan başlar, kırarken art arda), kolda tişört kolu (1. ve 3. şahıs), kaçan moblar suya ancak başka kuru yön yoksa girer, eşya simgeleri yenilendi (dış çizgi, kabartma, basamaklı tonlar, kılıç/alet/zırh/iksir ayrıntıları) |
 | 1.20.0 | G6: blok kırılırken bloğun renklerinde kırıntılar (çatlak ilerledikçe birkaç tane, kırılınca patlama); demir, altın ve elmas cevheri kırılınca parıltı. Düşük kalitede kapalı |
 | 1.19.0 | G5: doku varyantları — çim, toprak, taş, yaprak, kum (4'er görünüm), çim yanı ve kütük kabuğu (3'er); bloğun konumuna göre seçilir, yan yana aynı desen tekrarlanmaz |
 | 1.18.0 | G4: yeni blok dokuları (16 px) — çok tonlu çim, sarkan çim kenarı, taşlı toprak, çatlaklı taş, oluklu kabuk, yuvarlak halkalı kütük, dolgun yaprak, parlak uçlu cevher kümeleri, benekli kum |

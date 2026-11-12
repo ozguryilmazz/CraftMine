@@ -405,17 +405,36 @@ static func _build_items() -> Image:
 			for px in ITEM_TILE:
 				var c := _item_pixel(icon, px + 0.5, py + 0.5)
 				if c.a > 0.0:
-					c = _v(c, rng.randf(), 0.045)
+					c = _v(c, rng.randf(), 0.02)
 				tile.set_pixel(px, py, c)
 		var ox := (icon % ITEM_COLS) * ITEM_TILE
 		var oy := (icon >> 3) * ITEM_TILE
 		for py in ITEM_TILE:
 			for px in ITEM_TILE:
 				var c := tile.get_pixel(px, py)
-				if c.a > 0.0 and _edge(tile, px, py):
-					c = c.darkened(0.55)
+				if c.a > 0.0:
+					# Kabartma: ışığa (sol üst) bakan iç kenar açılır, karşı kenar koyulaşır.
+					if _empty(tile, px - 1, py) or _empty(tile, px, py - 1):
+						c = c.lightened(0.24)
+					elif _empty(tile, px + 1, py) or _empty(tile, px, py + 1):
+						c = c.darkened(0.3)
+				else:
+					# Dış çizgi: şeklin dışına, komşu rengin çok koyu tonuyla çizilir (şekil küçülmez).
+					c = _outline(tile, px, py)
 				img.set_pixel(ox + px, oy + py, c)
 	return img
+
+
+static func _empty(t: Image, x: int, y: int) -> bool:
+	return x < 0 or y < 0 or x >= ITEM_TILE or y >= ITEM_TILE or t.get_pixel(x, y).a == 0.0
+
+
+static func _outline(t: Image, x: int, y: int) -> Color:
+	for d: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+		if not _empty(t, x + d.x, y + d.y):
+			var c := t.get_pixel(x + d.x, y + d.y)
+			return Color(c.r * 0.22, c.g * 0.2, c.b * 0.24, 1.0)
+	return Color(0, 0, 0, 0)
 
 
 ## Piksel şeklin kenarında mı? (dış çizgi için)
@@ -444,8 +463,10 @@ static func _rpg_pixel(id: int, fx: float, fy: float, u: float, v: float) -> Col
 				inside = absf(dx) < 10.5 and not (absf(dx) < 5.5 and fy > 19.0)
 			if not inside:
 				return none
-			if absf(dx) < 1.3 and fy < 19.0:
-				return _lit(iron, 0.9)
+			if absf(dx) < 1.3 and fy < 22.0:
+				return _lit(iron, 0.9)                # tepe sırtı ve burunluk
+			if fy >= 15.5 and fy < 17.5:
+				return gold if int(absf(dx)) % 4 == 2 else _lit(iron.darkened(0.35), light)   # perçinli alın bandı
 			return _lit(iron, light * 1.2)
 		Items.CHESTPLATE:
 			if Vector2(dx, fy - 6.0).length() < 4.5:
@@ -453,10 +474,16 @@ static func _rpg_pixel(id: int, fx: float, fy: float, u: float, v: float) -> Col
 			if (fy >= 6.0 and fy < 13.0 and absf(dx) < 12.5) or (fy >= 13.0 and fy < 27.0 and absf(dx) < 7.5):
 				if fy >= 13.0 and int(fy) % 5 == 0:
 					return _lit(iron, -0.5)
+				if fy < 8.0 or (fy >= 13.0 and absf(dx) > 6.0):
+					return _lit(gold, light)          # omuz ve yan şeritler
+				if Vector2(dx, fy - 17.0).length() < 2.2:
+					return _lit(gold, 0.5)            # göğüs arması
 				return _lit(iron, light * 1.3)
 			return none
 		Items.LEGGINGS:
 			if fy >= 4.0 and fy < 10.0 and absf(dx) < 8.5:
+				if fy < 6.5:
+					return _lit(Color(0.4, 0.27, 0.15), light) if absf(dx) > 1.8 else gold   # kemer ve tokası
 				return _lit(iron, light + 0.2)
 			if fy >= 10.0 and fy < 23.0 and absf(dx) > 1.5 and absf(dx) < 8.5:
 				return _lit(iron, light)
@@ -516,7 +543,13 @@ static func _rpg_pixel(id: int, fx: float, fy: float, u: float, v: float) -> Col
 			var rr := Vector2(dx, fy - 20.0).length()
 			if rr < 8.6:
 				if rr < 6.9 and fy > 16.5:
-					return _lit(liquid, light * 1.4 + (0.5 if Vector2(dx + 2.5, fy - 18.5).length() < 1.6 else 0.0))
+					if Vector2(dx - 2.0, fy - 22.5).length() < 1.1 or Vector2(dx + 1.0, fy - 24.5).length() < 0.8:
+						return liquid.lightened(0.55)   # kabarcık
+					if fy < 18.0:
+						return liquid.lightened(0.3)    # sıvının yüzeyi
+					return _lit(liquid, light * 1.4)
+				if Vector2(dx + 4.5, fy - 16.0).length() < 1.6:
+					return Color(1, 1, 1)               # camda parlama
 				return _lit(glass, light)
 			return none
 		Items.TOTEM:
@@ -546,8 +579,19 @@ static func _rpg_pixel(id: int, fx: float, fy: float, u: float, v: float) -> Col
 
 ## l: -1 (gölge) .. +1 (ışık)
 static func _lit(c: Color, l: float) -> Color:
-	l = clampf(l, -1.0, 1.0)
-	return c.lightened(0.32 * l) if l > 0.0 else c.darkened(-0.38 * l)
+	# Işık basamaklara yuvarlanır: yumuşak geçiş yerine piksel sanatı gibi net tonlar.
+	l = roundf(clampf(l, -1.0, 1.0) * 2.0) / 2.0
+	return c.lightened(0.34 * l) if l > 0.0 else c.darkened(-0.4 * l)
+
+
+## Ahşap sap: damarlı, ucu koyu.
+static func _handle(u: float, v: float, hw: float, u0: float) -> Color:
+	var wood := Color(0.58, 0.4, 0.2)
+	if u < u0 + 1.6:
+		wood = Color(0.36, 0.24, 0.12)
+	elif int(u * 0.5 + v * 0.3) % 4 == 0:
+		wood = Color(0.47, 0.31, 0.15)
+	return _lit(wood, v / hw)
 
 
 static func _item_pixel(icon: int, fx: float, fy: float) -> Color:
@@ -561,21 +605,36 @@ static func _item_pixel(icon: int, fx: float, fy: float) -> Color:
 	if icon >= RPG_ICON_BASE and icon < RPG_ICON_BASE + 6:
 		# Kılıç: ahşap kabza, koyu siperlik, kademeye göre renkli ve ucu sivrilen namlu
 		var blade: Color = TIER_COLORS[icon - RPG_ICON_BASE]
-		if u > 1.0 and u <= 7.5 and absf(v) < 1.8:
-			return _lit(wood, v / 1.8)
-		if u > 7.5 and u <= 10.0 and absf(v) < 5.6:
-			return _lit(blade.darkened(0.45), v / 5.6)
-		if u > 10.0 and u < 31.0:
-			var hw := 2.9 * minf(1.0, (31.0 - u) / 4.5)
+		var metal := Color(0.36, 0.34, 0.4) if icon - RPG_ICON_BASE != 3 else Color(0.5, 0.4, 0.14)
+		# Topuz
+		if Vector2(u - 2.2, v).length() < 2.4:
+			return _lit(metal, v / 2.4 + 0.2)
+		# Sargılı kabza
+		if u > 3.5 and u <= 8.5 and absf(v) < 1.7:
+			return _lit(Color(0.3, 0.2, 0.12) if int(u) % 2 == 0 else Color(0.5, 0.34, 0.18), v / 1.7)
+		# Siperlik: uçları yuvarlak, ortasında taş
+		if u > 8.5 and u <= 11.2 and absf(v) < 6.2:
+			if Vector2(u - 9.85, v).length() < 1.3:
+				return blade.lightened(0.45)
+			if absf(v) > 4.6 and Vector2(u - 9.85, absf(v) - 4.6).length() > 1.5:
+				return none
+			return _lit(metal, v / 6.2)
+		# Namlu: ortada oluk, bir yüzü aydınlık bir yüzü gölgeli, ucu sivri
+		if u > 11.2 and u < 31.5:
+			var hw := 3.3 * minf(1.0, (31.5 - u) / 5.0)
 			if absf(v) < hw:
-				return _lit(blade, 0.9 if absf(v) < 0.7 else v / hw * 0.8)
+				if absf(v) < 0.6 and u < 26.0:
+					return blade.darkened(0.3)
+				return _lit(blade, 0.8 if v > 0.0 else -0.5)
 		return none
 	if icon >= RPG_ICON_BASE:
 		return _rpg_pixel(Items.SWORD_WOOD + icon - RPG_ICON_BASE, fx, fy, u, v)
 	match icon:
 		0:   # çubuk
-			if u > 1.5 and u < 30.0 and absf(v) < 1.9:
-				return _lit(wood, v / 1.9)
+			if u > 1.5 and u < 30.0 and absf(v) < 2.0:
+				if Vector2(u - 12.0, v - 0.4).length() < 1.1 or Vector2(u - 22.0, v + 0.5).length() < 1.0:
+					return Color(0.34, 0.22, 0.1)   # budak
+				return _handle(u, v, 2.0, 1.5)
 			return none
 		1:   # kömür: üç topaktan oluşan parlak yüzeyli parça
 			var inside := Vector2(fx - 13.0, fy - 18.0).length() < 7.0 \
@@ -585,15 +644,21 @@ static func _item_pixel(icon: int, fx: float, fy: float) -> Color:
 				return none
 			var light := (-(fx - 16.0) - (fy - 17.0)) / 12.0
 			if (int(fx / 3.0) + int(fy / 3.0)) % 3 == 0:
-				light += 0.5
-			return _lit(Color(0.17, 0.17, 0.19), light * 1.3)
+				light += 0.6
+			if Vector2(fx - 12.0, fy - 15.0).length() < 1.3 or Vector2(fx - 19.0, fy - 11.5).length() < 1.1:
+				return Color(0.62, 0.64, 0.7)        # parlak yüzey
+			return _lit(Color(0.16, 0.16, 0.19), light * 1.3)
 		2, 3:   # külçe: üst, ön ve yan yüzü görünen çubuk
 			var c: Color = TIER_COLORS[icon]
 			if fy >= 11.0 and fy < 17.0:
 				var s := 17.0 - fy
 				if fx >= 5.0 + s and fx < 21.0 + s:
+					if fy >= 13.0 and fy < 15.0 and fx >= 10.0 + s and fx < 16.0 + s:
+						return c.lightened(0.7)      # üst yüzde parlama
 					return c.lightened(0.35)
 			if fy >= 17.0 and fy < 23.0 and fx >= 5.0 and fx < 21.0:
+				if fy >= 19.0 and fy < 21.0 and fx >= 8.0 and fx < 18.0:
+					return c.darkened(0.16)          # ön yüzde damga oluğu
 				return c
 			if fx >= 21.0 and fx < 27.0:
 				var k := fx - 21.0
@@ -613,6 +678,8 @@ static func _item_pixel(icon: int, fx: float, fy: float) -> Color:
 					if ax < hw * 0.35:
 						l += 0.35
 					return _lit(c, l)
+			if Vector2(fx - 11.5, fy - 10.0).length() < 1.2:
+				return Color(1, 1, 1)                # ışıltı
 			return none
 	if icon < 8 or icon >= 23:
 		return none
@@ -624,16 +691,26 @@ static func _item_pixel(icon: int, fx: float, fy: float) -> Color:
 		0:   # kazma: sapın ucunda yay biçiminde baş
 			var rr := sqrt(u * u + v * v)
 			var t := absf(atan2(v, u)) / 0.62
-			if t < 1.0 and absf(rr - 24.0) < 2.4 * (1.0 - t * t * 0.55):
+			if t < 1.0 and absf(rr - 24.0) < 2.7 * (1.0 - t * t * 0.55):
+				if absf(rr - 24.6) < 0.5 and t < 0.75:
+					return head.lightened(0.5)       # sırt boyunca parlak çizgi
 				return _lit(head, (rr - 24.0) / 2.0)
 		1:   # balta: sapın bir yanında kavisli ağız
-			if u > 13.5 and u < 25.0 and v > -1.8 and v < 9.5 - (u - 19.2) * (u - 19.2) * 0.13:
-				return _lit(head, (v - 3.5) / 5.0)
+			var top := 9.5 - (u - 19.2) * (u - 19.2) * 0.13
+			if u > 13.5 and u < 25.0 and v > -1.8 and v < top:
+				if v > top - 1.6:
+					return head.lightened(0.55)      # bilenmiş ağız
+				return _lit(head, (v - 3.0) / 5.0 - 0.2)
 		2:   # kürek: sapın ucunda oval ağız
 			var e := pow((u - 24.5) / 5.5, 2.0) + pow(v / 4.2, 2.0)
 			if e < 1.0:
+				if absf(v) < 0.5 and u < 27.0:
+					return head.darkened(0.25)       # orta oluk
 				return _lit(head, v / 3.5)
 	var handle_len := 22.0 if type != 2 else 20.5
-	if u > 0.5 and u < handle_len and absf(v) < 1.7:
-		return _lit(wood, v / 1.7)
+	if u > 0.5 and u < handle_len and absf(v) < 1.8:
+		# Başın sapa bağlandığı yerde koyu sargı
+		if u > handle_len - 5.0 and u < handle_len - 2.0 and int(u) % 2 == 0:
+			return _lit(Color(0.3, 0.26, 0.2), v / 1.8)
+		return _handle(u, v, 1.8, 0.5)
 	return none
