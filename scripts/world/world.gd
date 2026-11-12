@@ -136,7 +136,7 @@ func _gen_task(key: Vector2i) -> void:
 
 
 func _mesh_task(key: Vector2i, version: int, d: PackedByteArray, nb: Array) -> void:
-	var mesh := ChunkMesher.build(d, nb)
+	var mesh := ChunkMesher.build(d, nb, key.x * CW, key.y * CW)
 	_mutex.lock()
 	_results.append({"gen": false, "key": key, "version": version, "mesh": mesh})
 	_mutex.unlock()

@@ -5,6 +5,9 @@ class_name Atlas
 const TILE := 16
 const GRID := 8
 const TILE_COUNT := 21
+## Doku varyantları: [ana karo, ilk varyant karosu, varyant sayısı]. Mesher bloğun konumuna göre birini seçer.
+const VARIANTS := [[0, 21, 3], [2, 24, 3], [3, 27, 3], [6, 30, 3], [9, 33, 3], [1, 36, 2], [4, 38, 2]]
+const TILE_TOTAL := 40
 const ITEM_TILE := 32
 const ITEM_COLS := 8
 const ITEM_ROWS := 10
@@ -25,6 +28,8 @@ static var _item_tex: ImageTexture
 static var _mat: StandardMaterial3D
 static var _water_mat: StandardMaterial3D
 static var _flat_mats := {}
+## Çizilmekte olan karonun varyant numarası (0 = ana doku); _h'nin tohumuna karışır.
+static var _voff := 0
 
 
 static func texture() -> ImageTexture:
@@ -131,12 +136,19 @@ static func _build() -> Image:
 	var img := Image.create(TILE * GRID, TILE * GRID, false, Image.FORMAT_RGBA8)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 1337
-	for t in TILE_COUNT:
+	for t in TILE_TOTAL:
 		var ox := (t & 7) * TILE
 		var oy := (t >> 3) * TILE
+		var base := t
+		_voff = 0
+		for v: Array in VARIANTS:
+			if t >= v[1] and t < v[1] + v[2]:
+				base = v[0]
+				_voff = t - v[1] + 1
 		for py in TILE:
 			for px in TILE:
-				img.set_pixel(ox + px, oy + py, _pixel(t, px, py, rng.randf()))
+				img.set_pixel(ox + px, oy + py, _pixel(base, px, py, rng.randf()))
+	_voff = 0
 	return img
 
 
@@ -161,7 +173,7 @@ static func _planks(px: int, py: int, n: float) -> Color:
 
 ## Konuma bağlı sabit rastgele değer (0..1); desenlerin yeri her açılışta aynı kalır.
 static func _h(a: int, b: int, c: int) -> float:
-	var x := (a * 374761393 + b * 668265263 + c * 1274126177 + 1013904223) & 0x7fffffff
+	var x := ((a + _voff * 131) * 374761393 + b * 668265263 + c * 1274126177 + 1013904223) & 0x7fffffff
 	x = ((x ^ (x >> 13)) * 1103515245) & 0x7fffffff
 	x = x ^ (x >> 16)
 	return float(x & 0xffff) / 65535.0

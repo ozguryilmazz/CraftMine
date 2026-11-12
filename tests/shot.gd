@@ -33,11 +33,14 @@ func _ready() -> void:
 		# Chunk köşesine (0,0) çukur ve sütun: çapraz komşuda gölge ve yeniden mesh sınaması
 		var gy: int = game.world.gen.height_at(0, 0)
 		pl.teleport(Vector3(2.5, gy + 2.0, 2.5))
-		pl.yaw = PI * 0.25
+		pl.yaw = PI * 0.12
 		pl.pitch = -0.55
 		game.world.set_block(Vector3i(0, gy + 1, 0), Blocks.STONE)
 		game.world.set_block(Vector3i(0, gy + 2, 0), Blocks.STONE)
 		game.world.set_block(Vector3i(-2, gy, -2), Blocks.AIR)
+		for wy in 4:
+			for wx in 5:
+				game.world.set_block(Vector3i(-1 - wx, gy + 1 + wy, 4), Blocks.STONE if wx < 3 else Blocks.DIRT)
 		await get_tree().create_timer(2.0).timeout
 		await _shot("g1_corner")
 		var t0 := Time.get_ticks_usec()

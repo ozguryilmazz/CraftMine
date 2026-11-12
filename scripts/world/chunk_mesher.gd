@@ -37,6 +37,9 @@ const PW := 18
 const PL := 324
 static var _opaque := PackedByteArray()
 static var _tiles := PackedByteArray()
+## Karo başına varyant bilgisi (Atlas.VARIANTS): ilk varyant karosu ve sayısı.
+static var _var_first := PackedByteArray()
+static var _var_count := PackedByteArray()
 static var _ready := false
 static var _block_meshes := {}
 
@@ -75,6 +78,11 @@ static func init_tables() -> void:
 		for a in 4:
 			var s: float = sh[f] * AO_CURVE[a]
 			_shade_ao.append(Color(s, s, s))
+	_var_first.resize(64)
+	_var_count.resize(64)
+	for v: Array in Atlas.VARIANTS:
+		_var_first[v[0]] = v[1]
+		_var_count[v[0]] = v[2]
 	for id in Blocks.COUNT:
 		_opaque.append(1 if Blocks.is_solid(id) else 0)
 		for t in 3:
@@ -117,7 +125,8 @@ static func _occupancy(d: PackedByteArray, nb: Array) -> PackedByteArray:
 	return occ
 
 
-static func build(d: PackedByteArray, nb: Array) -> Dictionary:
+## ox, oz: chunk'ın dünya koordinatındaki köşesi (doku varyantı konumdan seçilir; tüm oyuncularda aynı çıkar).
+static func build(d: PackedByteArray, nb: Array, ox := 0, oz := 0) -> Dictionary:
 	var xm: PackedByteArray = nb[0]
 	var xp: PackedByteArray = nb[1]
 	var zm: PackedByteArray = nb[2]
@@ -146,6 +155,8 @@ static func build(d: PackedByteArray, nb: Array) -> Dictionary:
 				if water and (y == CH - 1 or d[idx + 256] != water_id):
 					top = 0.875
 				var b := wb if water else ob
+				var vh := (((x + ox) * 73856093) ^ (y * 19349663) ^ ((z + oz) * 83492791)) & 0x7fffffff
+				vh = (vh ^ (vh >> 11)) & 0xffff
 				for f in 6:
 					var nid := 0
 					if f == 0:
@@ -163,6 +174,11 @@ static func build(d: PackedByteArray, nb: Array) -> Dictionary:
 					if _opaque[nid] == 1 or (water and nid == water_id):
 						continue
 					var tile := _tiles[id * 3 + (0 if f == 2 else (2 if f == 3 else 1))]
+					var vc := _var_count[tile]
+					if vc > 0:
+						var vi := vh % (vc + 1)
+						if vi > 0:
+							tile = _var_first[tile] + vi - 1
 					var tu := (tile & 7) * 0.125
 					var tv := (tile >> 3) * 0.125
 					var n0 := b.v.size()
