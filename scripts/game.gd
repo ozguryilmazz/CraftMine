@@ -55,6 +55,8 @@ var _highlight: MeshInstance3D
 var _remotes := {}             # uid -> PlayerModel
 var _pause_panel: Control
 var _pause_label: Label
+## Test aracı: 0..1 arası verilirse günün saati buna sabitlenir (0.25 = öğle).
+var sky_time_override := -1.0
 var _quality_button: Button
 var _fps_button: Button
 var _resume_button: Button
@@ -305,6 +307,8 @@ func _process(delta: float) -> void:
 
 func _update_sky() -> void:
 	var t := fmod(Time.get_unix_time_from_system(), DAY_LENGTH) / DAY_LENGTH
+	if sky_time_override >= 0.0:
+		t = sky_time_override
 	var day := smoothstep(0.0, 1.0, clampf(sin(t * TAU) * 2.5 + 1.25, 0.0, 1.0))
 	var sky := Color(0.02, 0.03, 0.08).lerp(Color(0.52, 0.74, 0.96), day)
 	_env.background_color = sky

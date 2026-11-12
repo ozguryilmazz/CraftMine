@@ -6,10 +6,10 @@ Kullanıcı Türkçe konuşur; yanıtlar Türkçe yazılır. Commit ve push işl
 
 ## Mevcut durum
 
-- **Sürüm:** 1.14.0 (version_code 19). Son commit konusu: G0 — FPS sayacı ve grafik kalitesi ayarı.
+- **Sürüm:** 1.15.0 (version_code 20). Son commit konusu: G1 — köşe gölgesi (ambient occlusion).
 - **Tamamlanan aşamalar:** 1–10 (aşağıdaki tabloya bakın) ve ilk telefon geri bildirimi düzeltmeleri.
-- **Grafik yol haritası:** G0 tamamlandı (v1.14.0). **Sıradaki iş G1** (köşe gölgesi). Kullanıcı önce telefonda (Samsung A34) üç kalite ayarındaki FPS değerlerini bildirecek; sonraki aşamaların varsayılanları buna göre seçilir. Aşama 11 (çok oyunculu) grafiklerden sonraya kaldı.
-- **Gerçek cihazda doğrulanmayanlar:** v1.14.0 kalite ayarı ve FPS değerleri, v1.12.1 düzeltmeleri, v1.13.0 envanter ekranı (dokunma, sürükle-bırak, sekmeler), boss'ların kendiliğinden doğması, çok oyunculu kodun tamamı, oyun içi güncelleme kontrolü.
+- **Grafik yol haritası:** G0 (v1.14.0) ve G1 (v1.15.0) tamamlandı. **Sıradaki iş G2** (gündüz-gece ve atmosfer). Kullanıcı G0'ı telefonda denemeden G1'e geçilmesini istedi (12 Kasım 2026); A34'teki FPS değerleri hâlâ bilinmiyor, kullanıcıdan bekleniyor. Aşama 11 (çok oyunculu) grafiklerden sonraya kaldı.
+- **Gerçek cihazda doğrulanmayanlar:** v1.15.0 köşe gölgesi (görünüm ve chunk yükleme takılması), v1.14.0 kalite ayarı ve FPS değerleri, v1.12.1 düzeltmeleri, v1.13.0 envanter ekranı (dokunma, sürükle-bırak, sekmeler), boss'ların kendiliğinden doğması, çok oyunculu kodun tamamı, oyun içi güncelleme kontrolü.
 
 ## Proje
 
@@ -113,6 +113,7 @@ Kaynaklar kullanıcının `Downloads` klasöründeki `mns2026.xlsx` ve `Yeni Met
 | 1.10.0 | Aşama 8: ekipman yuvaları |
 | 1.11.0 | Aşama 9: iksirler, totem |
 | 1.12.0 | Aşama 10: boss'lar |
+| 1.15.0 | G1: köşe gölgesi — blokların birleştiği köşe ve diplerde yumuşak koyulaşma (tüm kalite ayarlarında açık; çizim maliyeti yok, yalnızca mesh kurma süresi) |
 | 1.14.0 | G0: FPS sayacı (sol üstte), duraklatma menüsünde "Grafik: Düşük/Orta/Yüksek" ve "FPS Sayacı" butonları; ayar `user://settings.cfg` içinde saklanır |
 | 1.13.1 | Düzeltme: envanter / çalışma masası kapatılınca 3. şahıstan 1. şahsa geçilmesi (X butonu HUD'daki görünüm butonunun üstündeydi ve aynı dokunuş ikisine de ulaşıyordu; HUD artık ekran açıkken ya da kapanırken başlayan dokunuşları yok sayıyor) |
 | 1.13.0 | Envanter ekranı yeniden düzenlendi: tam ekran, kabartmalı iki panel, sekmeler, tarif listesinden hızlı üretim (malzemesi eksik tarifler kırmızı) |
@@ -120,7 +121,9 @@ Kaynaklar kullanıcının `Downloads` klasöründeki `mns2026.xlsx` ve `Yeni Met
 
 ## Grafik yol haritası (kullanıcı onayladı, 11 Kasım 2026)
 
-Hedef: klasik voxel görünümü korunur; ışık, gölge, doku ve atmosfer kalitesi yükseltilir. Mimari değişmez, aşama aşama ilerlenir. Her aşama: kod → PC testi → yeni sürüm → kullanıcı telefonda dener → sonraki aşama. G0 bitti; G1–G9 başlamadı.
+Hedef: klasik voxel görünümü korunur; ışık, gölge, doku ve atmosfer kalitesi yükseltilir. Mimari değişmez, aşama aşama ilerlenir. Her aşama: kod → PC testi → yeni sürüm → kullanıcı telefonda dener → sonraki aşama. G0 ve G1 bitti; G2–G9 başlamadı.
+
+**Köşe gölgesi (G1'de kuruldu):** `ChunkMesher.build(d, nb)` artık 8 komşu alır (`World.NEIGHBORS` sırası: 4 yan + 4 çapraz). `_occupancy` 18×66×18 dolgulu doluluk dizisi kurar; her köşe için 3 komşuya bakılır (`_ao_off`), parlaklık `AO_CURVE = [0.3, 0.48, 0.68, 1.0]` ile yüz parlaklığına çarpılır (`_shade_ao`). Köşegen daha aydınlık köşe çiftinden geçirilir. Su yüzeylerine uygulanmaz. `set_block` sınırdaki blokta çapraz chunk'ı da yeniden mesh'ler. Eğri 0.5/0.68/0.84 iken gölge görünmüyordu; değerler bu yüzden koyu. PC'de mesh süresi chunk başına ~30–50 ms (iş parçacığında). Hızlı test: `shot.tscn -- --ao` (`g1_*.png`). `game.sky_time_override` (0.25 = öğle) testlerde gündüz görüntüsü almak için eklendi.
 
 **Kalite ayarı (G0'da kuruldu):** `Session.quality` (0 düşük, 1 orta, 2 yüksek; varsayılan orta), `Session.show_fps` (varsayılan açık, ölçüm dönemi için), `Session.quality_changed` sinyali, `Session.render_distance()`. `game.gd` `_apply_quality()` ayarı uygular. Şu an ayarın etkisi: görüş mesafesi telefonda 3/4/5, bilgisayarda 4/6/8 chunk (orta = önceki değerler); yüksekte 2x MSAA. `World.set_render_distance()` çalışırken mesafeyi değiştirir. Sonraki aşamalar `Session.quality`'ye bakmalı. Hızlı test: `shot.tscn -- --gfx` (yaklaşık 25 sn; üç ayarı dolaşır, `g0_*.png` kaydeder).
 
@@ -137,7 +140,7 @@ Hedef: klasik voxel görünümü korunur; ışık, gölge, doku ve atmosfer kali
 | Aşama | İçerik | Dokunulacak yerler / notlar |
 |---|---|---|
 | G0 ✔ | FPS sayacı ve grafik kalitesi ayarı (düşük / orta / yüksek) | Ayar `Session` içinde saklanır (`user://settings.cfg`), duraklatma ya da ana menüden değiştirilir. Sonraki aşamalar bu ayara bakar. Telefonda FPS bilinmiyor; ölçüm buradan başlar. |
-| G1 | Köşe gölgesi (ambient occlusion) | `ChunkMesher`: köşe başına AO, mesh renklerine işlenir (GL Compatibility'de SSAO yok). Şu an yüz parlaklıkları `sh := [0.8, 0.8, 1.0, 0.5, 0.65, 0.65]`. Mesher yalnızca 4 yan komşuyu alıyor; chunk köşeleri için çapraz komşular da gerekir. Dörtgenin köşegeni AO'ya göre çevrilmeli. |
+| G1 ✔ | Köşe gölgesi (ambient occlusion) | `ChunkMesher`: köşe başına AO, mesh renklerine işlenir (GL Compatibility'de SSAO yok). Şu an yüz parlaklıkları `sh := [0.8, 0.8, 1.0, 0.5, 0.65, 0.65]`. Mesher yalnızca 4 yan komşuyu alıyor; chunk köşeleri için çapraz komşular da gerekir. Dörtgenin köşegeni AO'ya göre çevrilmeli. |
 | G2 | Gündüz-gece ve atmosfer | `game.gd` `_update_sky`: güneş şu an sabit açıda, yalnızca parlaklığı değişiyor. Güneş hareket etmeli; gün doğumu/batımı renkleri, sis rengi, gecenin fazla karanlık olması burada düzelir. Saat cihaz saatinden türetilir (tüm oyuncularda aynı), bu korunmalı. |
 | G3 | Güneş gölgeleri | `DirectionalLight3D` gölgesi, yalnızca "yüksek" ayarda. Çözünürlük ve mesafe mobil için sınırlanır. Blok malzemesi hem güneşten ışık alıyor hem sabit yüz parlaklığı kullanıyor; gölge açıkken ikisi üst üste biner, yüz parlaklıkları yeniden dengelenmeli. |
 | G4 | Blok dokuları (16 px) | `Atlas._pixel`: çim (doğal tonlar), toprak (küçük taşlar), taş (yüzey varyasyonu), kütük (kabuk ve halkalar), yaprak (dolgun), cevherler (belirgin mineral). |

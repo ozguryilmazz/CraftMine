@@ -23,6 +23,32 @@ func _ready() -> void:
 	add_child(game)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	await get_tree().create_timer(7.0).timeout
+	if "--ao" in OS.get_cmdline_user_args():
+		game.sky_time_override = 0.25
+		var pl: Player = game.player
+		await _shot("g1_view")
+		pl.pitch = -0.9
+		await get_tree().create_timer(0.3).timeout
+		await _shot("g1_down")
+		# Chunk köşesine (0,0) çukur ve sütun: çapraz komşuda gölge ve yeniden mesh sınaması
+		var gy: int = game.world.gen.height_at(0, 0)
+		pl.teleport(Vector3(2.5, gy + 2.0, 2.5))
+		pl.yaw = PI * 0.25
+		pl.pitch = -0.55
+		game.world.set_block(Vector3i(0, gy + 1, 0), Blocks.STONE)
+		game.world.set_block(Vector3i(0, gy + 2, 0), Blocks.STONE)
+		game.world.set_block(Vector3i(-2, gy, -2), Blocks.AIR)
+		await get_tree().create_timer(2.0).timeout
+		await _shot("g1_corner")
+		var t0 := Time.get_ticks_usec()
+		var nb := []
+		for o: Vector2i in World.NEIGHBORS:
+			nb.append(game.world._chunks[o].data)
+		for i in 10:
+			ChunkMesher.build(game.world._chunks[Vector2i.ZERO].data, nb)
+		print("mesh ms/chunk=", (Time.get_ticks_usec() - t0) / 10000.0)
+		get_tree().quit()
+		return
 	if "--gfx" in OS.get_cmdline_user_args():
 		for q in [0, 2, 1]:
 			Session.set_quality(q)

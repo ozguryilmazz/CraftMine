@@ -16,6 +16,9 @@ class Chunk:
 	var version := 0
 	var meshed := false
 
+## Mesh için gereken komşular; sıra ChunkMesher.build ile aynı olmalı.
+const NEIGHBORS: Array[Vector2i] = [Vector2i(-1, 0), Vector2i(1, 0), Vector2i(0, -1), Vector2i(0, 1), Vector2i(-1, -1), Vector2i(1, -1), Vector2i(-1, 1), Vector2i(1, 1)]
+
 var gen: WorldGen
 var render_distance := 5
 var center := Vector2i.ZERO
@@ -110,18 +113,19 @@ func _schedule() -> void:
 			continue
 		if maxi(absi(off.x), absi(off.y)) > render_distance:
 			continue
-		var xm: Chunk = _chunks.get(key + Vector2i(-1, 0))
-		var xp: Chunk = _chunks.get(key + Vector2i(1, 0))
-		var zm: Chunk = _chunks.get(key + Vector2i(0, -1))
-		var zp: Chunk = _chunks.get(key + Vector2i(0, 1))
-		if xm == null or xp == null or zm == null or zp == null:
-			continue
-		if xm.data.is_empty() or xp.data.is_empty() or zm.data.is_empty() or zp.data.is_empty():
+		# 4 yan + 4 çapraz komşu (çaprazlar köşe gölgesi için gerekir).
+		var nb := []
+		for o: Vector2i in NEIGHBORS:
+			var nc: Chunk = _chunks.get(key + o)
+			if nc == null or nc.data.is_empty():
+				break
+			nb.append(nc.data)
+		if nb.size() < 8:
 			continue
 		ch.dirty = false
 		ch.meshing = true
 		_mesh_pending += 1
-		_tasks.append(WorkerThreadPool.add_task(_mesh_task.bind(key, ch.version, ch.data, xm.data, xp.data, zm.data, zp.data)))
+		_tasks.append(WorkerThreadPool.add_task(_mesh_task.bind(key, ch.version, ch.data, nb)))
 
 
 func _gen_task(key: Vector2i) -> void:
@@ -131,8 +135,8 @@ func _gen_task(key: Vector2i) -> void:
 	_mutex.unlock()
 
 
-func _mesh_task(key: Vector2i, version: int, d: PackedByteArray, xm: PackedByteArray, xp: PackedByteArray, zm: PackedByteArray, zp: PackedByteArray) -> void:
-	var mesh := ChunkMesher.build(d, xm, xp, zm, zp)
+func _mesh_task(key: Vector2i, version: int, d: PackedByteArray, nb: Array) -> void:
+	var mesh := ChunkMesher.build(d, nb)
 	_mutex.lock()
 	_results.append({"gen": false, "key": key, "version": version, "mesh": mesh})
 	_mutex.unlock()
@@ -248,14 +252,15 @@ func set_block(p: Vector3i, id: int, from_net := false) -> void:
 	if ch != null and not ch.data.is_empty() and ch.data[idx] != id:
 		ch.data[idx] = id
 		_touch(key)
-		if lx == 0:
-			_touch(key + Vector2i(-1, 0))
-		elif lx == CW - 1:
-			_touch(key + Vector2i(1, 0))
-		if lz == 0:
-			_touch(key + Vector2i(0, -1))
-		elif lz == CW - 1:
-			_touch(key + Vector2i(0, 1))
+		# Sınırdaki blok komşu chunk'ın yüzlerini ve köşe gölgesini de değiştirir (çaprazlar dahil).
+		var ex := -1 if lx == 0 else (1 if lx == CW - 1 else 0)
+		var ez := -1 if lz == 0 else (1 if lz == CW - 1 else 0)
+		if ex != 0:
+			_touch(key + Vector2i(ex, 0))
+		if ez != 0:
+			_touch(key + Vector2i(0, ez))
+		if ex != 0 and ez != 0:
+			_touch(key + Vector2i(ex, ez))
 	if not from_net:
 		block_changed.emit(p, id)
 
