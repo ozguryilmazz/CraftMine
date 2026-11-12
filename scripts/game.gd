@@ -6,6 +6,9 @@ const REACH := 6.0
 const SKY_DAY := Color(0.52, 0.74, 0.96)
 const SKY_NIGHT := Color(0.035, 0.055, 0.13)
 const SKY_DUSK := Color(1.0, 0.6, 0.34)
+## GL Compatibility'de gölgeli yön ışığı ayrı bir geçişte çizilir ve aynı enerjiyle yaklaşık 3,5 kat parlak çıkar
+## (ölçüldü); gölge açıkken enerji bununla çarpılarak iki ayarın parlaklığı eşitlenir.
+const SHADOW_LIGHT_SCALE := 0.16
 const DAY_LENGTH := 720.0        # saniye; saat cihaz saatinden türetildiği için tüm oyuncularda aynıdır
 const REMOTE_TIMEOUT := 12.0
 const MINE_STAGES := 8
@@ -55,6 +58,7 @@ var info_text := ""
 var _env: Environment
 var _sun: DirectionalLight3D
 var _sun_disc: MeshInstance3D
+var _sun_scale := 1.0
 var _moon_disc: MeshInstance3D
 var _highlight: MeshInstance3D
 var _remotes := {}             # uid -> PlayerModel
@@ -161,6 +165,13 @@ func _setup_environment() -> void:
 	we.environment = _env
 	add_child(we)
 	_sun = DirectionalLight3D.new()
+	_sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+	_sun.directional_shadow_max_distance = 56.0
+	_sun.directional_shadow_fade_start = 0.75
+	_sun.shadow_bias = 0.06
+	_sun.shadow_normal_bias = 1.2
+	_sun.shadow_blur = 0.6
+	RenderingServer.directional_shadow_atlas_set_size(2048, true)
 	add_child(_sun)
 	_sun_disc = _make_disc(42.0, Color(1.0, 0.93, 0.62))
 	_moon_disc = _make_disc(30.0, Color(0.84, 0.88, 0.96))
@@ -189,6 +200,9 @@ func _apply_quality() -> void:
 	_env.fog_depth_begin = world.render_distance * 16.0 * 0.55
 	_env.fog_depth_end = world.render_distance * 16.0 - 6.0
 	get_viewport().msaa_3d = Viewport.MSAA_2X if Session.quality == 2 else Viewport.MSAA_DISABLED
+	# Gerçek zamanlı güneş / ay gölgesi yalnızca yüksek ayarda.
+	_sun.shadow_enabled = Session.quality == 2
+	_sun_scale = SHADOW_LIGHT_SCALE if _sun.shadow_enabled else 1.0
 	if _quality_button != null:
 		_quality_button.text = "Grafik: %s" % Session.QUALITY_NAMES[Session.quality]
 		_fps_button.text = "FPS Sayacı: %s" % ("Açık" if Session.show_fps else "Kapalı")
@@ -339,7 +353,7 @@ func _update_sky() -> void:
 	var sky := SKY_NIGHT.lerp(SKY_DAY, day).lerp(SKY_DUSK, dusk * 0.8)
 	_env.background_color = sky
 	_env.fog_light_color = sky
-	_env.ambient_light_energy = lerpf(0.34, 0.75, day)
+	_env.ambient_light_energy = lerpf(0.34, 0.62, day)
 	_env.ambient_light_color = Color(0.6, 0.7, 1.0).lerp(Color.WHITE, day)
 	# Güneş doğudan (+x) doğar, batıdan batar; gece ışık karşı taraftaki aydan gelir.
 	var dir := Vector3(cos(a), h, 0.35).normalized()
@@ -347,11 +361,16 @@ func _update_sky() -> void:
 	ld.y = maxf(ld.y, 0.25)                               # ufukta ışık yere tam paralel düşmesin
 	_sun.basis = Basis.looking_at(-ld.normalized())
 	if h >= 0.0:
-		_sun.light_energy = 0.55 * smoothstep(0.0, 0.25, h)
+		_sun.light_energy = 0.5 * smoothstep(0.0, 0.25, h)
 		_sun.light_color = Color.WHITE.lerp(Color(1.0, 0.72, 0.45), dusk)
 	else:
 		_sun.light_energy = 0.16 * smoothstep(0.0, 0.25, -h)
 		_sun.light_color = Color(0.6, 0.72, 1.0)
+	if _sun.shadow_enabled:
+		# Gölge belli olsun diye ortam ışığının bir kısmı güneşe / aya aktarılır; açık alanın toplam parlaklığı aynı kalır.
+		var moved := _env.ambient_light_energy * 0.3
+		_env.ambient_light_energy -= moved
+		_sun.light_energy = (_sun.light_energy + moved) * _sun_scale
 	var cam := player.camera.global_position
 	_sun_disc.position = cam + dir * 300.0
 	_moon_disc.position = cam - dir * 300.0

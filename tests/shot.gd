@@ -63,6 +63,20 @@ func _ready() -> void:
 			await _shot("g2_t%03d" % int(st * 100))
 		get_tree().quit()
 		return
+	if "--shadow" in OS.get_cmdline_user_args():
+		var hp: Player = game.player
+		var q0 := Session.quality
+		hp.pitch = -0.35
+		for st in [0.08, 0.25, 0.75]:
+			game.sky_time_override = st
+			for q in [1, 2]:
+				Session.set_quality(q)
+				await get_tree().create_timer(2.5).timeout
+				print("t=", st, " q=", q, " fps=", Engine.get_frames_per_second())
+				await _shot("g3_t%03d_q%d" % [int(st * 100), q])
+		Session.set_quality(q0)
+		get_tree().quit()
+		return
 	if "--gfx" in OS.get_cmdline_user_args():
 		for q in [0, 2, 1]:
 			Session.set_quality(q)
