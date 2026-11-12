@@ -49,6 +49,20 @@ func _ready() -> void:
 		print("mesh ms/chunk=", (Time.get_ticks_usec() - t0) / 10000.0)
 		get_tree().quit()
 		return
+	if "--sky" in OS.get_cmdline_user_args():
+		var sp: Player = game.player
+		sp.yaw = -PI * 0.5
+		sp.pitch = 0.25
+		print("look=", sp.look_dir())
+		for st in [0.25, 0.47, 0.49, 0.51, 0.75]:
+			game.sky_time_override = st
+			sp.yaw = -PI * 0.5 if st < 0.25 or st > 0.6 else PI * 0.5
+			if st == 0.25:
+				sp.pitch = 0.0
+			await get_tree().create_timer(0.4).timeout
+			await _shot("g2_t%03d" % int(st * 100))
+		get_tree().quit()
+		return
 	if "--gfx" in OS.get_cmdline_user_args():
 		for q in [0, 2, 1]:
 			Session.set_quality(q)

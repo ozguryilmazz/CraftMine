@@ -6,10 +6,10 @@ Kullanıcı Türkçe konuşur; yanıtlar Türkçe yazılır. Commit ve push işl
 
 ## Mevcut durum
 
-- **Sürüm:** 1.15.0 (version_code 20). Son commit konusu: G1 — köşe gölgesi (ambient occlusion).
+- **Sürüm:** 1.16.0 (version_code 21). Son commit konusu: G2 — gündüz-gece döngüsü ve atmosfer.
 - **Tamamlanan aşamalar:** 1–10 (aşağıdaki tabloya bakın) ve ilk telefon geri bildirimi düzeltmeleri.
-- **Grafik yol haritası:** G0 (v1.14.0) ve G1 (v1.15.0) tamamlandı. **Sıradaki iş G2** (gündüz-gece ve atmosfer). Kullanıcı G0'ı telefonda denemeden G1'e geçilmesini istedi (12 Kasım 2026); A34'teki FPS değerleri hâlâ bilinmiyor, kullanıcıdan bekleniyor. Aşama 11 (çok oyunculu) grafiklerden sonraya kaldı.
-- **Gerçek cihazda doğrulanmayanlar:** v1.15.0 köşe gölgesi (görünüm ve chunk yükleme takılması), v1.14.0 kalite ayarı ve FPS değerleri, v1.12.1 düzeltmeleri, v1.13.0 envanter ekranı (dokunma, sürükle-bırak, sekmeler), boss'ların kendiliğinden doğması, çok oyunculu kodun tamamı, oyun içi güncelleme kontrolü.
+- **Grafik yol haritası:** G0 (v1.14.0), G1 (v1.15.0) ve G2 (v1.16.0) tamamlandı. **Sıradaki iş G3** (güneş gölgeleri, yalnızca "yüksek" ayarda). **Telefon ölçümü (kullanıcı, 12 Kasım 2026, v1.15.0, Samsung A34):** üç kalite ayarında da 60 FPS (ekran yenileme sınırı), chunk yüklenirken takılma yok. Yani cihazda pay var; görüş mesafesi ve MSAA FPS'i düşürmüyor. Aşama 11 (çok oyunculu) grafiklerden sonraya kaldı.
+- **Gerçek cihazda doğrulanmayanlar:** v1.16.0 gündüz-gece (renkler, gece parlaklığı), v1.12.1 düzeltmeleri, v1.13.0 envanter ekranı (dokunma, sürükle-bırak, sekmeler), boss'ların kendiliğinden doğması, çok oyunculu kodun tamamı, oyun içi güncelleme kontrolü.
 
 ## Proje
 
@@ -113,6 +113,7 @@ Kaynaklar kullanıcının `Downloads` klasöründeki `mns2026.xlsx` ve `Yeni Met
 | 1.10.0 | Aşama 8: ekipman yuvaları |
 | 1.11.0 | Aşama 9: iksirler, totem |
 | 1.12.0 | Aşama 10: boss'lar |
+| 1.16.0 | G2: güneş doğudan batıya hareket eder, gece ay ışığı; gün doğumu/batımında turuncu gökyüzü ve sis; gökyüzünde kare güneş ve ay; gece daha aydınlık (ortam ışığı 0.12 → 0.34, mavimsi) |
 | 1.15.0 | G1: köşe gölgesi — blokların birleştiği köşe ve diplerde yumuşak koyulaşma (tüm kalite ayarlarında açık; çizim maliyeti yok, yalnızca mesh kurma süresi) |
 | 1.14.0 | G0: FPS sayacı (sol üstte), duraklatma menüsünde "Grafik: Düşük/Orta/Yüksek" ve "FPS Sayacı" butonları; ayar `user://settings.cfg` içinde saklanır |
 | 1.13.1 | Düzeltme: envanter / çalışma masası kapatılınca 3. şahıstan 1. şahsa geçilmesi (X butonu HUD'daki görünüm butonunun üstündeydi ve aynı dokunuş ikisine de ulaşıyordu; HUD artık ekran açıkken ya da kapanırken başlayan dokunuşları yok sayıyor) |
@@ -121,7 +122,9 @@ Kaynaklar kullanıcının `Downloads` klasöründeki `mns2026.xlsx` ve `Yeni Met
 
 ## Grafik yol haritası (kullanıcı onayladı, 11 Kasım 2026)
 
-Hedef: klasik voxel görünümü korunur; ışık, gölge, doku ve atmosfer kalitesi yükseltilir. Mimari değişmez, aşama aşama ilerlenir. Her aşama: kod → PC testi → yeni sürüm → kullanıcı telefonda dener → sonraki aşama. G0 ve G1 bitti; G2–G9 başlamadı.
+Hedef: klasik voxel görünümü korunur; ışık, gölge, doku ve atmosfer kalitesi yükseltilir. Mimari değişmez, aşama aşama ilerlenir. Her aşama: kod → PC testi → yeni sürüm → kullanıcı telefonda dener → sonraki aşama. G0, G1 ve G2 bitti; G3–G9 başlamadı.
+
+**Gökyüzü (G2'de kuruldu):** `game.gd` `_update_sky`. `t` = günün kesri (cihaz saatinden, `DAY_LENGTH` 720 sn; 0 gün doğumu, 0.25 öğle, 0.5 gün batımı, 0.75 gece yarısı), `h = sin(t·TAU)` güneş yüksekliği. Güneş yönü `(cos, h, 0.35)`; `_sun` (DirectionalLight3D) gündüz güneşten, gece karşıdaki aydan (enerji 0.16, mavimsi) aydınlatır, ışık yüksekliği en az 0.25. Gökyüzü/sis: `SKY_NIGHT` → `SKY_DAY`, ufka yakınken `SKY_DUSK` (ilk denemede zayıf karışım gri-mor çıktı; ağırlık 0.8'e çıkarıldı). `_sun_disc` / `_moon_disc` kameradan 300 birim uzakta, sisten etkilenmeyen kare levhalar. Hızlı test: `shot.tscn -- --sky` (`g2_t*.png`). G3'te gölge yönü bu `_sun`'dan gelir.
 
 **Köşe gölgesi (G1'de kuruldu):** `ChunkMesher.build(d, nb)` artık 8 komşu alır (`World.NEIGHBORS` sırası: 4 yan + 4 çapraz). `_occupancy` 18×66×18 dolgulu doluluk dizisi kurar; her köşe için 3 komşuya bakılır (`_ao_off`), parlaklık `AO_CURVE = [0.3, 0.48, 0.68, 1.0]` ile yüz parlaklığına çarpılır (`_shade_ao`). Köşegen daha aydınlık köşe çiftinden geçirilir. Su yüzeylerine uygulanmaz. `set_block` sınırdaki blokta çapraz chunk'ı da yeniden mesh'ler. Eğri 0.5/0.68/0.84 iken gölge görünmüyordu; değerler bu yüzden koyu. PC'de mesh süresi chunk başına ~30–50 ms (iş parçacığında). Hızlı test: `shot.tscn -- --ao` (`g1_*.png`). `game.sky_time_override` (0.25 = öğle) testlerde gündüz görüntüsü almak için eklendi.
 
@@ -141,7 +144,7 @@ Hedef: klasik voxel görünümü korunur; ışık, gölge, doku ve atmosfer kali
 |---|---|---|
 | G0 ✔ | FPS sayacı ve grafik kalitesi ayarı (düşük / orta / yüksek) | Ayar `Session` içinde saklanır (`user://settings.cfg`), duraklatma ya da ana menüden değiştirilir. Sonraki aşamalar bu ayara bakar. Telefonda FPS bilinmiyor; ölçüm buradan başlar. |
 | G1 ✔ | Köşe gölgesi (ambient occlusion) | `ChunkMesher`: köşe başına AO, mesh renklerine işlenir (GL Compatibility'de SSAO yok). Şu an yüz parlaklıkları `sh := [0.8, 0.8, 1.0, 0.5, 0.65, 0.65]`. Mesher yalnızca 4 yan komşuyu alıyor; chunk köşeleri için çapraz komşular da gerekir. Dörtgenin köşegeni AO'ya göre çevrilmeli. |
-| G2 | Gündüz-gece ve atmosfer | `game.gd` `_update_sky`: güneş şu an sabit açıda, yalnızca parlaklığı değişiyor. Güneş hareket etmeli; gün doğumu/batımı renkleri, sis rengi, gecenin fazla karanlık olması burada düzelir. Saat cihaz saatinden türetilir (tüm oyuncularda aynı), bu korunmalı. |
+| G2 ✔ | Gündüz-gece ve atmosfer | `game.gd` `_update_sky`: güneş şu an sabit açıda, yalnızca parlaklığı değişiyor. Güneş hareket etmeli; gün doğumu/batımı renkleri, sis rengi, gecenin fazla karanlık olması burada düzelir. Saat cihaz saatinden türetilir (tüm oyuncularda aynı), bu korunmalı. |
 | G3 | Güneş gölgeleri | `DirectionalLight3D` gölgesi, yalnızca "yüksek" ayarda. Çözünürlük ve mesafe mobil için sınırlanır. Blok malzemesi hem güneşten ışık alıyor hem sabit yüz parlaklığı kullanıyor; gölge açıkken ikisi üst üste biner, yüz parlaklıkları yeniden dengelenmeli. |
 | G4 | Blok dokuları (16 px) | `Atlas._pixel`: çim (doğal tonlar), toprak (küçük taşlar), taş (yüzey varyasyonu), kütük (kabuk ve halkalar), yaprak (dolgun), cevherler (belirgin mineral). |
 | G5 | Doku varyasyonları | Atlas 8×8 = 64 hücre, 21'i dolu; varyasyonlara yer var. `ChunkMesher` konumdan türetilen sabit bir karma ile varyant seçer (tüm oyuncularda aynı görünmeli). |
@@ -165,7 +168,6 @@ Hedef: klasik voxel görünümü korunur; ışık, gölge, doku ve atmosfer kali
 ## Bilinen eksikler
 
 - Takılı zırh/kalkan ve elde tutulan eşya 3. şahıs modelinde görünmez.
-- Gece ekran çok karanlık; moblar zor seçilir.
 - Fırın yalnızca ekranı açıkken çalışır; su akmaz; mağara yok.
 - Düşen eşyalar, envanter, moblar ve sandıklar çok oyunculuda eşitlenmez; katılan oyuncunun envanteri kaydedilmez.
 - Kılıç, sandık, kase, yay gibi tarifler dışındaki Minecraft tarifleri yok.

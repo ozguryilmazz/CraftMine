@@ -3,6 +3,9 @@ extends Node3D
 ## envanter ve çok oyunculu eşitlemeyi yönetir.
 
 const REACH := 6.0
+const SKY_DAY := Color(0.52, 0.74, 0.96)
+const SKY_NIGHT := Color(0.035, 0.055, 0.13)
+const SKY_DUSK := Color(1.0, 0.6, 0.34)
 const DAY_LENGTH := 720.0        # saniye; saat cihaz saatinden türetildiği için tüm oyuncularda aynıdır
 const REMOTE_TIMEOUT := 12.0
 const MINE_STAGES := 8
@@ -51,6 +54,8 @@ var info_text := ""
 
 var _env: Environment
 var _sun: DirectionalLight3D
+var _sun_disc: MeshInstance3D
+var _moon_disc: MeshInstance3D
 var _highlight: MeshInstance3D
 var _remotes := {}             # uid -> PlayerModel
 var _pause_panel: Control
@@ -156,8 +161,26 @@ func _setup_environment() -> void:
 	we.environment = _env
 	add_child(we)
 	_sun = DirectionalLight3D.new()
-	_sun.rotation_degrees = Vector3(-55, 35, 0)
 	add_child(_sun)
+	_sun_disc = _make_disc(42.0, Color(1.0, 0.93, 0.62))
+	_moon_disc = _make_disc(30.0, Color(0.84, 0.88, 0.96))
+
+
+## Gökyüzündeki kare güneş / ay: kameraya dönük, sisten ve ışıktan etkilenmez.
+func _make_disc(side: float, color: Color) -> MeshInstance3D:
+	var quad := QuadMesh.new()
+	quad.size = Vector2(side, side)
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	mat.disable_fog = true
+	mat.albedo_color = color
+	quad.material = mat
+	var mi := MeshInstance3D.new()
+	mi.mesh = quad
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+	return mi
 
 
 ## Grafik kalitesi ayarını uygular: görüş mesafesi, sis ve kenar yumuşatma.
@@ -309,12 +332,31 @@ func _update_sky() -> void:
 	var t := fmod(Time.get_unix_time_from_system(), DAY_LENGTH) / DAY_LENGTH
 	if sky_time_override >= 0.0:
 		t = sky_time_override
-	var day := smoothstep(0.0, 1.0, clampf(sin(t * TAU) * 2.5 + 1.25, 0.0, 1.0))
-	var sky := Color(0.02, 0.03, 0.08).lerp(Color(0.52, 0.74, 0.96), day)
+	var a := t * TAU
+	var h := sin(a)                                      # güneşin yüksekliği: 1 öğle, 0 ufuk, -1 gece yarısı
+	var day := smoothstep(-0.2, 0.3, h)
+	var dusk := 1.0 - smoothstep(0.0, 0.32, absf(h))     # güneş ufka yakınken 1
+	var sky := SKY_NIGHT.lerp(SKY_DAY, day).lerp(SKY_DUSK, dusk * 0.8)
 	_env.background_color = sky
 	_env.fog_light_color = sky
-	_env.ambient_light_energy = lerpf(0.12, 0.75, day)
-	_sun.light_energy = lerpf(0.0, 0.55, day)
+	_env.ambient_light_energy = lerpf(0.34, 0.75, day)
+	_env.ambient_light_color = Color(0.6, 0.7, 1.0).lerp(Color.WHITE, day)
+	# Güneş doğudan (+x) doğar, batıdan batar; gece ışık karşı taraftaki aydan gelir.
+	var dir := Vector3(cos(a), h, 0.35).normalized()
+	var ld := dir if h >= 0.0 else -dir
+	ld.y = maxf(ld.y, 0.25)                               # ufukta ışık yere tam paralel düşmesin
+	_sun.basis = Basis.looking_at(-ld.normalized())
+	if h >= 0.0:
+		_sun.light_energy = 0.55 * smoothstep(0.0, 0.25, h)
+		_sun.light_color = Color.WHITE.lerp(Color(1.0, 0.72, 0.45), dusk)
+	else:
+		_sun.light_energy = 0.16 * smoothstep(0.0, 0.25, -h)
+		_sun.light_color = Color(0.6, 0.72, 1.0)
+	var cam := player.camera.global_position
+	_sun_disc.position = cam + dir * 300.0
+	_moon_disc.position = cam - dir * 300.0
+	_sun_disc.visible = dir.y > -0.12
+	_moon_disc.visible = dir.y < 0.12
 
 
 func _update_highlight() -> void:
