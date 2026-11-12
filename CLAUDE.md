@@ -6,10 +6,10 @@ Kullanıcı Türkçe konuşur; yanıtlar Türkçe yazılır. Commit ve push işl
 
 ## Mevcut durum
 
-- **Sürüm:** 1.17.0 (version_code 22). Son commit konusu: G3 — güneş / ay gölgeleri (yüksek ayarda).
+- **Sürüm:** 1.18.0 (version_code 23). Son commit konusu: G4 — blok dokuları.
 - **Tamamlanan aşamalar:** 1–10 (aşağıdaki tabloya bakın) ve ilk telefon geri bildirimi düzeltmeleri.
-- **Grafik yol haritası:** G0 (v1.14.0), G1 (v1.15.0), G2 (v1.16.0) ve G3 (v1.17.0) tamamlandı. **Sıradaki iş G4** (blok dokuları, 16 px). **Telefon ölçümü (kullanıcı, 12 Kasım 2026, v1.15.0, Samsung A34):** üç kalite ayarında da 60 FPS (ekran yenileme sınırı), chunk yüklenirken takılma yok. Yani cihazda pay var; görüş mesafesi ve MSAA FPS'i düşürmüyor. Aşama 11 (çok oyunculu) grafiklerden sonraya kaldı.
-- **Gerçek cihazda doğrulanmayanlar:** v1.17.0 gölgeler (yüksek ayarda FPS ve görünüm; PC'de gölge FPS'i belirgin düşürdü), v1.16.0 gündüz-gece (renkler, gece parlaklığı), v1.12.1 düzeltmeleri, v1.13.0 envanter ekranı (dokunma, sürükle-bırak, sekmeler), boss'ların kendiliğinden doğması, çok oyunculu kodun tamamı, oyun içi güncelleme kontrolü.
+- **Grafik yol haritası:** G0 (v1.14.0), G1 (v1.15.0), G2 (v1.16.0), G3 (v1.17.0) ve G4 (v1.18.0) tamamlandı. **Sıradaki iş G5** (doku varyasyonları). Kullanıcı G3'ü telefonda ölçmeden G4'e geçilmesini istedi; yüksek ayardaki (gölgeli) telefon FPS'i hâlâ bilinmiyor. **Telefon ölçümü (kullanıcı, 12 Kasım 2026, v1.15.0, Samsung A34):** üç kalite ayarında da 60 FPS (ekran yenileme sınırı), chunk yüklenirken takılma yok. Yani cihazda pay var; görüş mesafesi ve MSAA FPS'i düşürmüyor. Aşama 11 (çok oyunculu) grafiklerden sonraya kaldı.
+- **Gerçek cihazda doğrulanmayanlar:** v1.18.0 dokular (beğeni), v1.17.0 gölgeler (yüksek ayarda FPS ve görünüm; PC'de gölge FPS'i belirgin düşürdü), v1.16.0 gündüz-gece (renkler, gece parlaklığı), v1.12.1 düzeltmeleri, v1.13.0 envanter ekranı (dokunma, sürükle-bırak, sekmeler), boss'ların kendiliğinden doğması, çok oyunculu kodun tamamı, oyun içi güncelleme kontrolü.
 
 ## Proje
 
@@ -113,6 +113,7 @@ Kaynaklar kullanıcının `Downloads` klasöründeki `mns2026.xlsx` ve `Yeni Met
 | 1.10.0 | Aşama 8: ekipman yuvaları |
 | 1.11.0 | Aşama 9: iksirler, totem |
 | 1.12.0 | Aşama 10: boss'lar |
+| 1.18.0 | G4: yeni blok dokuları (16 px) — çok tonlu çim, sarkan çim kenarı, taşlı toprak, çatlaklı taş, oluklu kabuk, yuvarlak halkalı kütük, dolgun yaprak, parlak uçlu cevher kümeleri, benekli kum |
 | 1.17.0 | G3: "Yüksek" ayarda gerçek zamanlı güneş / ay gölgesi (ağaç, tepe, mob, oyuncu); gündüz parlaklığı biraz kısıldı (öğle vakti kum beyaza kaçıyordu) |
 | 1.16.0 | G2: güneş doğudan batıya hareket eder, gece ay ışığı; gün doğumu/batımında turuncu gökyüzü ve sis; gökyüzünde kare güneş ve ay; gece daha aydınlık (ortam ışığı 0.12 → 0.34, mavimsi) |
 | 1.15.0 | G1: köşe gölgesi — blokların birleştiği köşe ve diplerde yumuşak koyulaşma (tüm kalite ayarlarında açık; çizim maliyeti yok, yalnızca mesh kurma süresi) |
@@ -123,7 +124,9 @@ Kaynaklar kullanıcının `Downloads` klasöründeki `mns2026.xlsx` ve `Yeni Met
 
 ## Grafik yol haritası (kullanıcı onayladı, 11 Kasım 2026)
 
-Hedef: klasik voxel görünümü korunur; ışık, gölge, doku ve atmosfer kalitesi yükseltilir. Mimari değişmez, aşama aşama ilerlenir. Her aşama: kod → PC testi → yeni sürüm → kullanıcı telefonda dener → sonraki aşama. G0–G3 bitti; G4–G9 başlamadı.
+Hedef: klasik voxel görünümü korunur; ışık, gölge, doku ve atmosfer kalitesi yükseltilir. Mimari değişmez, aşama aşama ilerlenir. Her aşama: kod → PC testi → yeni sürüm → kullanıcı telefonda dener → sonraki aşama. G0–G4 bitti; G5–G9 başlamadı.
+
+**Dokular (G4'te kuruldu):** `Atlas` içinde `_h(a, b, c)` (konuma bağlı sabit rastgele), `_blot(t, px, py, cell)` (döşenebilir yumuşak leke gürültüsü; `cell` 16'yı bölmeli), `_grass_top`, `_dirt`, `_stone`, `_ore` (6 sabit küme: açık uç + koyu gölge). Kırık taş, tahta, çalışma masası, fırın, katman kayası değişmedi. Atlası büyütüp görmek için geçici bir betikle `Atlas._build()` sonucu `resize(…, INTERPOLATE_NEAREST)` edilip PNG kaydedilir. Aynı taş dokusunun üst üste tekrarı belirgin; G5 bunu çözecek.
 
 **Gölge (G3'te kuruldu):** `_apply_quality` içinde `_sun.shadow_enabled = quality == 2`. Ayarlar `_setup_environment`'ta: 2 bölmeli PSSM, mesafe 56, atlas 2048, bias 0.06 / normal bias 1.2. **Tuzak:** GL Compatibility'de gölgeli yön ışığı ayrı geçişte çizilir ve aynı enerjiyle çok daha parlak çıkar; `SHADOW_LIGHT_SCALE = 0.16` ölçülerek bulundu (ekran görüntülerinde aydınlık çim ve kum bölgelerinin ortalaması karşılaştırıldı; 0.28 hâlâ parlaktı). Gölge açıkken ortam ışığının %30'u güneşe/aya aktarılır (gölge belirginleşsin, açık alan aynı kalsın). Gündüz ortam ışığı 0.75 → 0.62, güneş 0.55 → 0.5 (tüm ayarlarda). Yüz parlaklıkları (`sh`) değiştirilmedi. Hızlı test: `shot.tscn -- --shadow` (`g3_t*_q*.png`, orta ve yüksek ayar yan yana).
 
@@ -149,7 +152,7 @@ Hedef: klasik voxel görünümü korunur; ışık, gölge, doku ve atmosfer kali
 | G1 ✔ | Köşe gölgesi (ambient occlusion) | `ChunkMesher`: köşe başına AO, mesh renklerine işlenir (GL Compatibility'de SSAO yok). Şu an yüz parlaklıkları `sh := [0.8, 0.8, 1.0, 0.5, 0.65, 0.65]`. Mesher yalnızca 4 yan komşuyu alıyor; chunk köşeleri için çapraz komşular da gerekir. Dörtgenin köşegeni AO'ya göre çevrilmeli. |
 | G2 ✔ | Gündüz-gece ve atmosfer | `game.gd` `_update_sky`: güneş şu an sabit açıda, yalnızca parlaklığı değişiyor. Güneş hareket etmeli; gün doğumu/batımı renkleri, sis rengi, gecenin fazla karanlık olması burada düzelir. Saat cihaz saatinden türetilir (tüm oyuncularda aynı), bu korunmalı. |
 | G3 ✔ | Güneş gölgeleri | `DirectionalLight3D` gölgesi, yalnızca "yüksek" ayarda. Çözünürlük ve mesafe mobil için sınırlanır. Blok malzemesi hem güneşten ışık alıyor hem sabit yüz parlaklığı kullanıyor; gölge açıkken ikisi üst üste biner, yüz parlaklıkları yeniden dengelenmeli. |
-| G4 | Blok dokuları (16 px) | `Atlas._pixel`: çim (doğal tonlar), toprak (küçük taşlar), taş (yüzey varyasyonu), kütük (kabuk ve halkalar), yaprak (dolgun), cevherler (belirgin mineral). |
+| G4 ✔ | Blok dokuları (16 px) | `Atlas._pixel`: çim (doğal tonlar), toprak (küçük taşlar), taş (yüzey varyasyonu), kütük (kabuk ve halkalar), yaprak (dolgun), cevherler (belirgin mineral). |
 | G5 | Doku varyasyonları | Atlas 8×8 = 64 hücre, 21'i dolu; varyasyonlara yer var. `ChunkMesher` konumdan türetilen sabit bir karma ile varyant seçer (tüm oyuncularda aynı görünmeli). |
 | G6 | Kırma parçacıkları | Blok kırılırken kırıntılar (bloğun dokusundan renk), cevher kırılınca parıltı. Uzakta azaltılır / kapatılır. |
 | G7 | Meşale ateşi | Alev animasyonu ve ışık titremesi. Meşale ışıkları `world.gd` içinde (satır 179 civarı `light_color`). |

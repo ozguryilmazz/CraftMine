@@ -159,41 +159,152 @@ static func _planks(px: int, py: int, n: float) -> Color:
 	return _v(plank, n, 0.06)
 
 
+## Konuma bağlı sabit rastgele değer (0..1); desenlerin yeri her açılışta aynı kalır.
+static func _h(a: int, b: int, c: int) -> float:
+	var x := (a * 374761393 + b * 668265263 + c * 1274126177 + 1013904223) & 0x7fffffff
+	x = ((x ^ (x >> 13)) * 1103515245) & 0x7fffffff
+	x = x ^ (x >> 16)
+	return float(x & 0xffff) / 65535.0
+
+
+## Yumuşak lekeler: karonun kenarlarında kesintisiz devam eden (döşenebilir) değer gürültüsü. cell 16'yı bölmeli.
+static func _blot(t: int, px: int, py: int, cell: int) -> float:
+	var cnt := TILE / cell
+	var gx := px / cell
+	var gy := py / cell
+	var fx := float(px % cell) / cell
+	var fy := float(py % cell) / cell
+	fx = fx * fx * (3.0 - 2.0 * fx)
+	fy = fy * fy * (3.0 - 2.0 * fy)
+	var gx1 := (gx + 1) % cnt
+	var gy1 := (gy + 1) % cnt
+	var top := lerpf(_h(t, gx, gy), _h(t, gx1, gy), fx)
+	var bot := lerpf(_h(t, gx, gy1), _h(t, gx1, gy1), fx)
+	return lerpf(top, bot, fy)
+
+
+static func _grass_top(px: int, py: int, n: float) -> Color:
+	var b := _blot(40, px, py, 4) * 0.7 + n * 0.3
+	if n > 0.94:
+		return Color(0.5, 0.76, 0.3)          # güneş alan uç
+	if n < 0.06:
+		return Color(0.2, 0.43, 0.15)         # koyu dip
+	if b < 0.36:
+		return _v(Color(0.26, 0.52, 0.18), n, 0.05)
+	if b < 0.62:
+		return _v(Color(0.33, 0.62, 0.22), n, 0.05)
+	return _v(Color(0.4, 0.69, 0.26), n, 0.05)
+
+
+static func _dirt(px: int, py: int, n: float) -> Color:
+	# Küçük taşlar: açık renkli tek piksel, sağ altında gölgesi.
+	if _h(41, px, py) < 0.05:
+		return _v(Color(0.66, 0.58, 0.5), n, 0.05)
+	if _h(41, (px + 15) % 16, (py + 15) % 16) < 0.05:
+		return Color(0.33, 0.22, 0.14)
+	var b := _blot(42, px, py, 4) * 0.65 + n * 0.35
+	if b < 0.34:
+		return _v(Color(0.44, 0.3, 0.2), n, 0.05)
+	if b < 0.66:
+		return _v(Color(0.52, 0.37, 0.25), n, 0.05)
+	return _v(Color(0.59, 0.43, 0.29), n, 0.05)
+
+
+static func _stone(px: int, py: int, n: float) -> Color:
+	var b := _blot(43, px, py, 4) * 0.75 + n * 0.25
+	var c := Color(0.5, 0.5, 0.52)
+	if b < 0.34:
+		c = Color(0.42, 0.42, 0.45)
+	elif b > 0.64:
+		c = Color(0.57, 0.57, 0.59)
+	# Kısa yatay çatlaklar ve açık lekeler
+	if _h(44, px >> 2, py) < 0.1 and _h(45, px, py) < 0.8:
+		c = Color(0.33, 0.33, 0.36)
+	elif _h(46, px, py) < 0.035:
+		c = Color(0.66, 0.66, 0.68)
+	return _v(c, n, 0.04)
+
+
+## Cevher: taş zemin üzerinde parlak uçlu, gölgeli mineral kümeleri.
 static func _ore(px: int, py: int, n: float, ore: Color) -> Color:
-	if (((px >> 1) * 5 + (py >> 1) * 3) % 7) == 0 and px > 0 and px < 15 and py > 0 and py < 15:
-		return _v(ore, n, 0.1)
-	return _v(Color(0.5, 0.5, 0.52), n, 0.16)
+	var cx := [3, 10, 6, 12, 2, 9]
+	var cy := [2, 3, 7, 9, 12, 13]
+	var shadow := false
+	for i in 6:
+		var dx: int = px - cx[i]
+		var dy: int = py - cy[i]
+		# Küme: 2x2 gövde + kümeye göre değişen bir çıkıntı
+		var ex := 2 if i % 2 == 0 else -1
+		var ey := 0 if i % 3 == 0 else 1
+		var inside := (dx >= 0 and dx <= 1 and dy >= 0 and dy <= 1) or (dx == ex and dy == ey)
+		if inside:
+			if dx == 0 and dy == 0:
+				return ore.lightened(0.35)
+			if dx == 1 and dy == 1:
+				return ore.darkened(0.2)
+			return _v(ore, n, 0.06)
+		var sx := dx - 1
+		var sy := dy - 1
+		if (sx >= 0 and sx <= 1 and sy >= 0 and sy <= 1) or (sx == ex and sy == ey):
+			shadow = true
+	if shadow:
+		return Color(0.3, 0.3, 0.33)
+	return _stone(px, py, n)
 
 
 static func _pixel(t: int, px: int, py: int, n: float) -> Color:
-	var grass := Color(0.33, 0.62, 0.22)
-	var dirt := Color(0.52, 0.37, 0.25)
 	match t:
 		0:
-			return _v(grass, n, 0.12)
+			return _grass_top(px, py, n)
 		1:
-			if py < 3 or (py == 3 and n > 0.5):
-				return _v(grass, n, 0.12)
-			return _v(dirt, n, 0.14)
+			# Çim örtüsü sütuna göre 2-4 piksel sarkar; altında bir piksel gölge.
+			var depth := 2 + int(_h(47, px, 0) * 3.0)
+			if py < depth:
+				var g := _grass_top(px, py, n)
+				return g.lightened(0.08) if py == 0 else g
+			if py == depth:
+				return _dirt(px, py, n).darkened(0.28)
+			return _dirt(px, py, n)
 		2:
-			return _v(dirt, n, 0.14)
+			return _dirt(px, py, n)
 		3:
-			return _v(Color(0.5, 0.5, 0.52), n, 0.16)
+			return _stone(px, py, n)
 		4:
+			# Kabuk: sütun sütun değişen tonlar, derin oluklar, kısa yatay yarıklar.
+			var hc := _h(48, px, 0)
 			var bark := Color(0.4, 0.29, 0.17)
-			if px % 4 == 0:
-				bark = bark.darkened(0.25)
-			return _v(bark, n, 0.08)
+			if hc < 0.28:
+				bark = Color(0.27, 0.19, 0.11)
+			elif hc > 0.72:
+				bark = Color(0.47, 0.35, 0.21)
+			if _h(49, px, py >> 2) < 0.16:
+				bark = bark.darkened(0.3)
+			elif _h(50, px, py) < 0.07:
+				bark = bark.lightened(0.14)
+			return _v(bark, n, 0.05)
 		5:
 			if px == 0 or px == 15 or py == 0 or py == 15:
-				return _v(Color(0.4, 0.29, 0.17), n, 0.08)
-			var d := int(maxf(absf(px - 7.5), absf(py - 7.5)))
-			var ring := Color(0.72, 0.58, 0.36)
-			if d % 2 == 0:
-				ring = ring.darkened(0.18)
-			return _v(ring, n, 0.05)
+				return _v(Color(0.33, 0.24, 0.14), n, 0.08)
+			# Yuvarlak yaş halkaları, ortada koyu öz.
+			var d := Vector2(px - 7.5, py - 7.5).length()
+			if d < 1.2:
+				return Color(0.5, 0.37, 0.2)
+			var ring := Color(0.74, 0.6, 0.38)
+			if int(d * 0.9 + _h(51, px, py) * 0.3) % 2 == 0:
+				ring = Color(0.62, 0.48, 0.28)
+			return _v(ring, n, 0.04)
 		6:
-			return _v(Color(0.18, 0.45, 0.14), n, 0.25)
+			# Dolgun yaprak: koyu boşluklar, üç ton yeşil, parlak uçlar.
+			var lb := _blot(52, px, py, 4) * 0.55 + n * 0.45
+			if n < 0.09:
+				return Color(0.07, 0.24, 0.07)
+			if n > 0.92:
+				return Color(0.36, 0.66, 0.25)
+			if lb < 0.38:
+				return _v(Color(0.12, 0.35, 0.1), n, 0.06)
+			if lb < 0.62:
+				return _v(Color(0.18, 0.45, 0.14), n, 0.06)
+			return _v(Color(0.25, 0.55, 0.19), n, 0.06)
 		7:
 			return _v(Color(0.2, 0.42, 0.85, 0.72), n, 0.06)
 		8:
@@ -204,7 +315,13 @@ static func _pixel(t: int, px: int, py: int, n: float) -> Color:
 					return _v(Color(0.45, 0.3, 0.15), n, 0.1)
 			return Color(0, 0, 0, 0)
 		9:
-			return _v(Color(0.86, 0.8, 0.58), n, 0.08)
+			var sb := _blot(53, px, py, 4)
+			var sand := Color(0.86, 0.8, 0.58)
+			if n < 0.07:
+				sand = Color(0.74, 0.67, 0.46)
+			elif sb > 0.62:
+				sand = Color(0.9, 0.85, 0.64)
+			return _v(sand, n, 0.04)
 		10:
 			return _planks(px, py, n)
 		11:
