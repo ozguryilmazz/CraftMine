@@ -80,6 +80,36 @@ func _ready() -> void:
 		Session.set_quality(q0)
 		get_tree().quit()
 		return
+	if "--debris" in OS.get_cmdline_user_args():
+		game.sky_time_override = 0.25
+		var dp: Player = game.player
+		var dgy: int = game.world.gen.height_at(0, 0)
+		dp.teleport(Vector3(0.5, dgy + 2.0, 4.5))
+		dp.yaw = 0.0
+		dp.pitch = -0.25
+		var blocks := [Blocks.GRASS, Blocks.STONE, Blocks.DIAMOND_ORE, Blocks.GOLD_ORE]
+		for i in 4:
+			for hh in 3:
+				game.world.set_block(Vector3i(-1 + i, dgy + 1 + hh, 1), Blocks.AIR)
+			game.world.set_block(Vector3i(-1 + i, dgy + 1, 1), blocks[i])
+		await get_tree().create_timer(2.0).timeout
+		print("look=", dp.look_dir())
+		for i in 4:
+			var bt := Time.get_ticks_msec()
+			game._break(Vector3i(-1 + i, dgy + 1, 1), blocks[i])
+			await get_tree().process_frame
+			await get_tree().process_frame
+			print("break ", i, " ms=", Time.get_ticks_msec() - bt)
+		await get_tree().create_timer(0.15).timeout
+		await _shot("g6_debris")
+		await get_tree().create_timer(1.5).timeout
+		var left := 0
+		for c in game.get_children():
+			if c is CPUParticles3D:
+				left += 1
+		print("emitters left=", left)
+		get_tree().quit()
+		return
 	if "--gfx" in OS.get_cmdline_user_args():
 		for q in [0, 2, 1]:
 			Session.set_quality(q)

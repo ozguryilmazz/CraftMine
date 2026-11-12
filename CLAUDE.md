@@ -6,10 +6,10 @@ Kullanıcı Türkçe konuşur; yanıtlar Türkçe yazılır. Commit ve push işl
 
 ## Mevcut durum
 
-- **Sürüm:** 1.19.0 (version_code 24). Son commit konusu: G5 — doku varyasyonları.
+- **Sürüm:** 1.20.0 (version_code 25). Son commit konusu: G6 — kırma parçacıkları.
 - **Tamamlanan aşamalar:** 1–10 (aşağıdaki tabloya bakın) ve ilk telefon geri bildirimi düzeltmeleri.
-- **Grafik yol haritası:** G0–G5 tamamlandı (v1.14.0 … v1.19.0). **Sıradaki iş G6** (kırma parçacıkları). Kullanıcı G3'ü telefonda ölçmeden G4'e geçilmesini istedi; yüksek ayardaki (gölgeli) telefon FPS'i hâlâ bilinmiyor. **Telefon ölçümü (kullanıcı, 12 Kasım 2026, v1.15.0, Samsung A34):** üç kalite ayarında da 60 FPS (ekran yenileme sınırı), chunk yüklenirken takılma yok. Yani cihazda pay var; görüş mesafesi ve MSAA FPS'i düşürmüyor. Aşama 11 (çok oyunculu) grafiklerden sonraya kaldı.
-- **Gerçek cihazda doğrulanmayanlar:** v1.18.0–1.19.0 dokular ve varyantlar (beğeni), v1.17.0 gölgeler (yüksek ayarda FPS ve görünüm; PC'de gölge FPS'i belirgin düşürdü), v1.16.0 gündüz-gece (renkler, gece parlaklığı), v1.12.1 düzeltmeleri, v1.13.0 envanter ekranı (dokunma, sürükle-bırak, sekmeler), boss'ların kendiliğinden doğması, çok oyunculu kodun tamamı, oyun içi güncelleme kontrolü.
+- **Grafik yol haritası:** G0–G6 tamamlandı (v1.14.0 … v1.20.0). **Sıradaki iş G7** (meşale ateşi). Kullanıcı G3'ü telefonda ölçmeden G4'e geçilmesini istedi; yüksek ayardaki (gölgeli) telefon FPS'i hâlâ bilinmiyor. **Telefon ölçümü (kullanıcı, 12 Kasım 2026, v1.15.0, Samsung A34):** üç kalite ayarında da 60 FPS (ekran yenileme sınırı), chunk yüklenirken takılma yok. Yani cihazda pay var; görüş mesafesi ve MSAA FPS'i düşürmüyor. Aşama 11 (çok oyunculu) grafiklerden sonraya kaldı.
+- **Gerçek cihazda doğrulanmayanlar:** v1.20.0 kırma parçacıkları, v1.18.0–1.19.0 dokular ve varyantlar (beğeni), v1.17.0 gölgeler (yüksek ayarda FPS ve görünüm; PC'de gölge FPS'i belirgin düşürdü), v1.16.0 gündüz-gece (renkler, gece parlaklığı), v1.12.1 düzeltmeleri, v1.13.0 envanter ekranı (dokunma, sürükle-bırak, sekmeler), boss'ların kendiliğinden doğması, çok oyunculu kodun tamamı, oyun içi güncelleme kontrolü.
 
 ## Proje
 
@@ -113,6 +113,7 @@ Kaynaklar kullanıcının `Downloads` klasöründeki `mns2026.xlsx` ve `Yeni Met
 | 1.10.0 | Aşama 8: ekipman yuvaları |
 | 1.11.0 | Aşama 9: iksirler, totem |
 | 1.12.0 | Aşama 10: boss'lar |
+| 1.20.0 | G6: blok kırılırken bloğun renklerinde kırıntılar (çatlak ilerledikçe birkaç tane, kırılınca patlama); demir, altın ve elmas cevheri kırılınca parıltı. Düşük kalitede kapalı |
 | 1.19.0 | G5: doku varyantları — çim, toprak, taş, yaprak, kum (4'er görünüm), çim yanı ve kütük kabuğu (3'er); bloğun konumuna göre seçilir, yan yana aynı desen tekrarlanmaz |
 | 1.18.0 | G4: yeni blok dokuları (16 px) — çok tonlu çim, sarkan çim kenarı, taşlı toprak, çatlaklı taş, oluklu kabuk, yuvarlak halkalı kütük, dolgun yaprak, parlak uçlu cevher kümeleri, benekli kum |
 | 1.17.0 | G3: "Yüksek" ayarda gerçek zamanlı güneş / ay gölgesi (ağaç, tepe, mob, oyuncu); gündüz parlaklığı biraz kısıldı (öğle vakti kum beyaza kaçıyordu) |
@@ -125,7 +126,9 @@ Kaynaklar kullanıcının `Downloads` klasöründeki `mns2026.xlsx` ve `Yeni Met
 
 ## Grafik yol haritası (kullanıcı onayladı, 11 Kasım 2026)
 
-Hedef: klasik voxel görünümü korunur; ışık, gölge, doku ve atmosfer kalitesi yükseltilir. Mimari değişmez, aşama aşama ilerlenir. Her aşama: kod → PC testi → yeni sürüm → kullanıcı telefonda dener → sonraki aşama. G0–G5 bitti; G6–G9 başlamadı.
+Hedef: klasik voxel görünümü korunur; ışık, gölge, doku ve atmosfer kalitesi yükseltilir. Mimari değişmez, aşama aşama ilerlenir. Her aşama: kod → PC testi → yeni sürüm → kullanıcı telefonda dener → sonraki aşama. G0–G6 bitti; G7–G9 başlamadı.
+
+**Parçacıklar (G6'da kuruldu):** `game.gd` `spawn_debris(pos, block, amount)` tek seferlik `CPUParticles3D` oluşturur (`finished` → `queue_free`); renkler `Atlas.tile_colors(karo)` ile bloğun yan karosundan örneklenir ve sabit basamaklı bir `Gradient` ile `color_initial_ramp`'e verilir. `_break` 9 (orta) / 14 (yüksek) parça, `mine_at` çatlak aşaması değişince 3 parça saçar. `SPARK_COLORS` içindeki cevherlerde ikinci, ışıktan etkilenmeyen bir parıltı yayıcısı var. `Session.quality == 0` iken kapalı. Yalnızca yerel oyuncunun kırdığı bloklarda çıkar (ağdan gelen kırmalarda yok). Hızlı test: `shot.tscn -- --debris`.
 
 **Varyantlar (G5'te kuruldu):** `Atlas.VARIANTS` = [ana karo, ilk varyant karosu, sayı]; varyant karoları 21–39 (`TILE_TOTAL` 40, atlas 64 hücre). `_build` varyantı çizerken `_voff`'u ayarlar, `_h` bunu tohuma karıştırır; yani varyant = aynı çizim fonksiyonu, farklı tohum. `ChunkMesher.build(d, nb, ox, oz)` blok başına dünya konumundan karma (`vh`) üretir ve `_var_first` / `_var_count` ile karoyu seçer (karma yalnızca konuma bağlı, tüm oyuncularda aynı). Elde tutulan blok, düşen eşya ve simgeler ana karoyu kullanır. Yeni blok dokusu eklerken 40 ve sonrası boş.
 
@@ -157,7 +160,7 @@ Hedef: klasik voxel görünümü korunur; ışık, gölge, doku ve atmosfer kali
 | G3 ✔ | Güneş gölgeleri | `DirectionalLight3D` gölgesi, yalnızca "yüksek" ayarda. Çözünürlük ve mesafe mobil için sınırlanır. Blok malzemesi hem güneşten ışık alıyor hem sabit yüz parlaklığı kullanıyor; gölge açıkken ikisi üst üste biner, yüz parlaklıkları yeniden dengelenmeli. |
 | G4 ✔ | Blok dokuları (16 px) | `Atlas._pixel`: çim (doğal tonlar), toprak (küçük taşlar), taş (yüzey varyasyonu), kütük (kabuk ve halkalar), yaprak (dolgun), cevherler (belirgin mineral). |
 | G5 ✔ | Doku varyasyonları | Atlas 8×8 = 64 hücre, 21'i dolu; varyasyonlara yer var. `ChunkMesher` konumdan türetilen sabit bir karma ile varyant seçer (tüm oyuncularda aynı görünmeli). |
-| G6 | Kırma parçacıkları | Blok kırılırken kırıntılar (bloğun dokusundan renk), cevher kırılınca parıltı. Uzakta azaltılır / kapatılır. |
+| G6 ✔ | Kırma parçacıkları | Blok kırılırken kırıntılar (bloğun dokusundan renk), cevher kırılınca parıltı. Uzakta azaltılır / kapatılır. |
 | G7 | Meşale ateşi | Alev animasyonu ve ışık titremesi. Meşale ışıkları `world.gd` içinde (satır 179 civarı `light_color`). |
 | G8 | Yaprak ve çim sallanması | Yapraklar için köşe animasyonu (blok malzemesi `StandardMaterial3D`; shader gerekebilir) ve yeni uzun çim bitkisi bloğu. Yalnızca yakın chunk'larda. Yeni blok kimliği Firebase kurallarındaki sınırın (`<= 63`) içinde kalmalı. |
 | G9 | Mob animasyonları | Baş, kuyruk, saldırı ve ölüm hareketleri (`scripts/mobs/mob.gd`). |

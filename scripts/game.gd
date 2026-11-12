@@ -3,6 +3,7 @@ extends Node3D
 ## envanter ve çok oyunculu eşitlemeyi yönetir.
 
 const REACH := 6.0
+const SPARK_COLORS := {Blocks.IRON_ORE: Color(1.0, 0.82, 0.68), Blocks.GOLD_ORE: Color(1.0, 0.9, 0.35), Blocks.DIAMOND_ORE: Color(0.5, 1.0, 0.98)}
 const SKY_DAY := Color(0.52, 0.74, 0.96)
 const SKY_NIGHT := Color(0.035, 0.055, 0.13)
 const SKY_DUSK := Color(1.0, 0.6, 0.34)
@@ -59,6 +60,9 @@ var _env: Environment
 var _sun: DirectionalLight3D
 var _sun_disc: MeshInstance3D
 var _sun_scale := 1.0
+var _mine_stage := 0
+var _debris_mesh: BoxMesh
+var _spark_mesh: BoxMesh
 var _moon_disc: MeshInstance3D
 var _highlight: MeshInstance3D
 var _remotes := {}             # uid -> PlayerModel
@@ -439,6 +443,7 @@ func mine_at(p: Vector2, delta: float) -> void:
 	if _mine_pos == null or _mine_pos != pos:
 		_mine_pos = pos
 		_mine_progress = 0.0
+		_mine_stage = 0
 	_mine_progress += delta
 	if _mine_progress >= hardness:
 		_break(pos, block)
@@ -446,6 +451,10 @@ func mine_at(p: Vector2, delta: float) -> void:
 		_mine_cooldown = MINE_COOLDOWN
 		return
 	var stage := clampi(int(_mine_progress / hardness * MINE_STAGES), 0, MINE_STAGES - 1)
+	if stage != _mine_stage:
+		_mine_stage = stage
+		if stage > 0:
+			spawn_debris(pos, block, 3)   # çatlak ilerledikçe birkaç kırıntı
 	_crack_mat.albedo_texture = _crack_tex[stage]
 	_crack.position = Vector3(pos) + Vector3(0.5, 0.5, 0.5)
 	_crack.visible = true
@@ -458,7 +467,79 @@ func _mine_reset() -> void:
 		_crack.visible = false
 
 
+## Blok kırıntıları: bloğun dokusundan alınan renklerde küçük küpler saçılır. Düşük kalitede kapalı.
+func spawn_debris(pos: Vector3i, block: int, amount: int) -> void:
+	if Session.quality == 0 or block <= 0 or block >= Blocks.COUNT:
+		return
+	var colors := Atlas.tile_colors(Blocks.TILES[block][1])
+	if colors.is_empty():
+		return
+	if _debris_mesh == null:
+		_debris_mesh = BoxMesh.new()
+		_debris_mesh.size = Vector3(0.09, 0.09, 0.09)
+		var mat := StandardMaterial3D.new()
+		mat.vertex_color_use_as_albedo = true
+		mat.roughness = 1.0
+		mat.metallic_specular = 0.0
+		_debris_mesh.material = mat
+		_spark_mesh = BoxMesh.new()
+		_spark_mesh.size = Vector3(0.05, 0.05, 0.05)
+		var smat := StandardMaterial3D.new()
+		smat.vertex_color_use_as_albedo = true
+		smat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_spark_mesh.material = smat
+	var grad := Gradient.new()
+	grad.interpolation_mode = Gradient.GRADIENT_INTERPOLATE_CONSTANT
+	grad.offsets = PackedFloat32Array(range(colors.size()).map(func(i: int) -> float: return float(i) / colors.size()))
+	grad.colors = colors
+	var p := CPUParticles3D.new()
+	p.mesh = _debris_mesh
+	p.amount = amount
+	p.one_shot = true
+	p.explosiveness = 1.0
+	p.lifetime = 0.7
+	p.lifetime_randomness = 0.4
+	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	p.emission_box_extents = Vector3(0.38, 0.38, 0.38)
+	p.direction = Vector3.UP
+	p.spread = 180.0
+	p.initial_velocity_min = 1.0
+	p.initial_velocity_max = 3.2
+	p.gravity = Vector3(0, -14, 0)
+	p.scale_amount_min = 0.6
+	p.scale_amount_max = 1.4
+	p.color_initial_ramp = grad
+	_emit(p, pos)
+	# Cevher parıltısı: yalnızca blok tamamen kırıldığında, yavaşça yükselen parlak noktalar.
+	if amount >= 8 and SPARK_COLORS.has(block):
+		var s := CPUParticles3D.new()
+		s.mesh = _spark_mesh
+		s.amount = 10
+		s.one_shot = true
+		s.explosiveness = 0.85
+		s.lifetime = 0.9
+		s.lifetime_randomness = 0.3
+		s.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+		s.emission_box_extents = Vector3(0.45, 0.45, 0.45)
+		s.direction = Vector3.UP
+		s.spread = 60.0
+		s.initial_velocity_min = 0.6
+		s.initial_velocity_max = 1.8
+		s.gravity = Vector3(0, -1.5, 0)
+		s.color = SPARK_COLORS[block]
+		_emit(s, pos)
+
+
+func _emit(p: CPUParticles3D, pos: Vector3i) -> void:
+	p.position = Vector3(pos) + Vector3(0.5, 0.5, 0.5)
+	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(p)
+	p.emitting = true
+	p.finished.connect(p.queue_free)
+
+
 func _break(pos: Vector3i, block: int) -> void:
+	spawn_debris(pos, block, 14 if Session.quality == 2 else 9)
 	# Yanında ya da üstünde su varsa kırılan bloğun yeri suyla dolar.
 	var fill := Blocks.AIR
 	for d: Vector3i in [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 0, 1), Vector3i(0, 0, -1), Vector3i(0, 1, 0)]:

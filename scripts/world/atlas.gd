@@ -24,6 +24,7 @@ const TIER_COLORS := [
 ]
 
 static var _tex: ImageTexture
+static var _img: Image
 static var _item_tex: ImageTexture
 static var _mat: StandardMaterial3D
 static var _water_mat: StandardMaterial3D
@@ -34,8 +35,22 @@ static var _voff := 0
 
 static func texture() -> ImageTexture:
 	if _tex == null:
-		_tex = ImageTexture.create_from_image(_build())
+		_img = _build()
+		_tex = ImageTexture.create_from_image(_img)
 	return _tex
+
+
+## Bir karodan örneklenen birkaç renk (kırma parçacıkları için).
+static func tile_colors(tile: int) -> PackedColorArray:
+	texture()
+	var out := PackedColorArray()
+	var ox := (tile & 7) * TILE
+	var oy := (tile >> 3) * TILE
+	for p: Vector2i in [Vector2i(2, 3), Vector2i(11, 2), Vector2i(6, 8), Vector2i(13, 9), Vector2i(3, 13), Vector2i(9, 14)]:
+		var c := _img.get_pixel(ox + p.x, oy + p.y)
+		if c.a > 0.5:
+			out.append(Color(c.r, c.g, c.b))
+	return out
 
 
 static func item_texture() -> ImageTexture:
